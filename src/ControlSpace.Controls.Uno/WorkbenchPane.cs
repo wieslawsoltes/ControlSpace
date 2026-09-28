@@ -1,7 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Windows.System;
 using static ControlSpace.Controls.Uno.EngineeringTheme;
 namespace ControlSpace.Controls.Uno;
@@ -47,17 +46,34 @@ public sealed class WorkbenchPane : UserControl
 /// <summary>Pointer/touch and keyboard splitter with a bounded delta supplied to the host.</summary>
 public sealed class WorkbenchSplitter : UserControl
 {
+    private uint? _pointer;
+    private double _previous;
     public event Action<double>? ResizeRequested;
     public event Action? ResetRequested;
     public WorkbenchSplitter(bool horizontal, string id)
     {
-        IsTabStop = true;
-        var thumb = new Thumb { Background = Brush("ACADB4"), IsTabStop = false };
-        Content = thumb; HorizontalContentAlignment = HorizontalAlignment.Stretch; VerticalContentAlignment = VerticalAlignment.Stretch;
-        thumb.PointerPressed += (_, _) => Focus(FocusState.Pointer);
+        IsTabStop = true; Background = Brush("ACADB4");
+        Content = new Border { Background = Brush("ACADB4") };
+        HorizontalContentAlignment = HorizontalAlignment.Stretch; VerticalContentAlignment = VerticalAlignment.Stretch;
         AutomationProperties.SetAutomationId(this, id); AutomationProperties.SetName(this, horizontal ? "Resize inspector height" : "Resize pane width");
         ToolTipService.SetToolTip(this, "Drag to resize. Arrow keys: 10 pixels. Home: reset.");
-        thumb.DragDelta += (_, e) => ResizeRequested?.Invoke(horizontal ? e.VerticalChange : e.HorizontalChange);
+        PointerPressed += (_, e) =>
+        {
+            if (_pointer is not null) return;
+            Focus(FocusState.Pointer);
+            if (!CapturePointer(e.Pointer)) return;
+            var point = e.GetCurrentPoint(null).Position;
+            _previous = horizontal ? point.Y : point.X; _pointer = e.Pointer.PointerId; e.Handled = true;
+        };
+        PointerMoved += (_, e) =>
+        {
+            if (_pointer != e.Pointer.PointerId) return;
+            var point = e.GetCurrentPoint(null).Position; double position = horizontal ? point.Y : point.X;
+            double delta = position - _previous; _previous = position;
+            if (delta != 0) ResizeRequested?.Invoke(delta); e.Handled = true;
+        };
+        PointerReleased += (_, e) => { if (_pointer != e.Pointer.PointerId) return; _pointer = null; ReleasePointerCapture(e.Pointer); e.Handled = true; };
+        PointerCanceled += (_, _) => _pointer = null; PointerCaptureLost += (_, _) => _pointer = null;
         DoubleTapped += (_, e) => { ResetRequested?.Invoke(); e.Handled = true; };
         KeyDown += (_, e) =>
         {

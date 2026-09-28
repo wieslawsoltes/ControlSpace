@@ -1,3 +1,6 @@
+using ControlSpace.Core;
+using ControlSpace.Languages;
+using ControlSpace.Simulation;
 using ControlSpace.Engineering;
 int count = 0;
 void Check(string name, bool condition) { if (!condition) throw new Exception(name); Console.WriteLine("PASS " + name); count++; }
@@ -30,4 +33,19 @@ tabs.Open("d", "Devices"); tabs.CloseOthers("b"); Check("close others", tabs.Act
 tabs.CloseOthers("missing"); Check("unknown close others no-op", tabs.Documents.Count == 1);
 tabs.Close("b"); Check("last editor closes to empty", tabs.Documents.Count == 0 && tabs.ActiveId is null);
 tabs.Open("a", "Main"); tabs.Clear(); Check("clear editors", tabs.Documents.Count == 0 && tabs.ActiveId is null);
-Console.WriteLine($"Workbench state tests: {count} passed, 0 failed.");
+foreach (var newline in new[] { "\n", "\r\n", "\r" })
+{
+    string label = newline.Replace("\r", "CR").Replace("\n", "LF");
+    var project = DemoProject.Create(); var block = project.Blocks.First(b => b.Language == BlockLanguage.SCL);
+    project.Blocks.Clear(); project.Blocks.Add(block with { Source = "// editor comment" + newline + "Speed_Actual := 42;" });
+    var compilation = ProjectCompiler.Compile(project);
+    Check(label + " editor source compiles", compilation.Success);
+    var plc = new VirtualPlc(compilation.Program!); plc.Step(TimeSpan.FromMilliseconds(100), true);
+    Check(label + " line comment does not swallow program", plc.Read("Speed_Actual") == 42);
+    project.Blocks[0] = block with { Source = "// editor comment" + newline + "Missing_Tag := 42;" };
+    var diagnostic = ProjectCompiler.Compile(project).Diagnostics.First(d => d.Severity == Severity.Error);
+    Check(label + " diagnostic points to second line", diagnostic.Line == 2 && diagnostic.Column == 1);
+    Check(label + " rename preserves comment and offsets",
+        SclParser.RenameSymbol("// Speed_Actual" + newline + "Speed_Actual := 42;", "Speed_Actual", "Actual") == "// Speed_Actual" + newline + "Actual := 42;");
+}
+Console.WriteLine($"Workbench state and editor conformance tests: {count} passed, 0 failed.");

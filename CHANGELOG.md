@@ -6,6 +6,8 @@
 - Added reusable pane chrome, keyboard/pointer splitters, closable/reorderable editor tabs, layout normalization and independent user preference storage.
 - Added hierarchical project navigation, ancestor-preserving search, keyboard navigation, Portal task pages, maximize/restore and compact-view drawers.
 - Preserved SCL drafts/caret and LAD view state during navigation and refresh; isolated tab-close behavior from neighboring source blocks; recovered drafts without project revision changes.
+- Fixed multiline editor initialization and CR/CRLF/LF source handling, including comment termination, diagnostic positions and token-safe renaming in both engines. Added complete-source preservation and executed-value browser checks.
+- Replaced unavailable system-font overrides with the host text font and packaged icon glyphs.
 - Added explicit per-screen HMI navigation and context-sensitive editor actions.
 - Added platform-neutral workbench tests and pointer/keyboard workflows against the real compiled Uno browser application. CI outputs genuine Uno screenshots separately from prototype images.
 - Full/pixel-exact TIA Portal UI parity is not claimed. See [workbench behavior and boundaries](docs/workbench.md).
