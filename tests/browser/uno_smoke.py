@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import traceback
 from pathlib import Path
 from playwright.async_api import async_playwright
 parser = argparse.ArgumentParser()
@@ -19,7 +20,8 @@ async def main():
         await page.add_init_script("""Object.defineProperty(window, 'controlSpaceVerification', {
             get() { return JSON.parse(window.controlSpaceVerificationJson || 'null'); }
         });""")
-        logs, errors, checks = [], [], []
+        logs, errors, checks, actions = [], [], [], []
+        failure = None
         page.on('console', lambda message: logs.append({'type': message.type, 'text': message.text}))
         page.on('pageerror', lambda error: errors.append(str(error)))
         async def wait(expression):
@@ -30,7 +32,8 @@ async def main():
             await wait(f"window.controlSpaceVerification.controls.some(c=>c.id==={json.dumps(identifier)})")
             bounds = await page.evaluate('(id)=>window.controlSpaceVerification.controls.find(c=>c.id===id)', identifier)
             await page.mouse.click(bounds['x'] + bounds['width'] / 2, bounds['y'] + bounds['height'] / 2)
-            await page.wait_for_timeout(250)
+            actions.append({'id': identifier, 'bounds': bounds})
+            await page.wait_for_timeout(500)
         def passed(name):
             checks.append(name)
             print('PASS', name, flush=True)
@@ -43,15 +46,25 @@ async def main():
             await click('tree-tags'); await wait("window.controlSpaceVerification.view==='tags'")
             await click('tree-block:speed'); await wait("window.controlSpaceVerification.view==='block:speed'")
             passed('project navigation opens real document tabs')
-            await click('scl-source'); await page.keyboard.press('Control+End'); await page.keyboard.type('\n// UI draft survives navigation')
-            await click('tab-tags'); await click('tab-block:speed')
-            await wait("window.controlSpaceVerification.source.includes('UI draft survives navigation')")
+            original = (await state())['blockSources']['speed']
+            assert 'END_IF;' in original
+            normalize = lambda text: text.replace('\r\n', '\n').replace('\r', '\n')
+            assert normalize((await state())['source']) == normalize(original), 'Multiline source was truncated when opening its editor'
+            await click('scl-source'); await page.keyboard.press('Control+End'); await page.keyboard.press('Enter')
+            await page.keyboard.type('// UI draft survives navigation')
+            await wait("window.controlSpaceVerification.source?.includes('UI draft survives navigation')")
+            edited = normalize((await state())['source'])
+            assert edited == normalize(original) + '\n// UI draft survives navigation', 'Editing changed existing source lines'
+            await click('tab-tags'); await wait("window.controlSpaceVerification.view==='tags'")
+            await click('tab-block:speed'); await wait("window.controlSpaceVerification.view==='block:speed'")
+            assert normalize((await state())['source']) == edited, 'Switching tabs changed source text'
             passed('SCL draft commits and survives document switching')
             await click('close-tags'); await wait("window.controlSpaceVerification.documents.every(d=>d.Id!=='tags')")
-            await wait("window.controlSpaceVerification.source.includes('UI draft survives navigation')")
+            await wait("window.controlSpaceVerification.source?.includes('UI draft survives navigation')")
             passed('closing inactive editor preserves active source')
             await click('close-block:speed'); await wait("window.controlSpaceVerification.view==='block:main'")
             assert 'UI draft' not in (await state())['blockSources']['main']
+            assert normalize((await state())['blockSources']['speed']) == edited
             passed('closing active source never overwrites neighboring block')
             await click('tree-blocks'); await wait("!window.controlSpaceVerification.controls.some(c=>c.id==='tree-block:main')")
             await click('tree-blocks'); await wait("window.controlSpaceVerification.controls.some(c=>c.id==='tree-block:main')")
@@ -97,11 +110,14 @@ async def main():
             await wait("window.controlSpaceVerification.layout.TaskCard==='Testing'")
             passed('window layout persists across reload independently of project')
             if errors: raise AssertionError('\n'.join(errors))
+        except Exception:
+            failure = traceback.format_exc()
+            raise
         finally:
             await page.screenshot(path=str(args.output / 'uno-last-state.png'))
             final_state = await state()
-            (args.output / 'logs.json').write_text(json.dumps({'checks': checks, 'console': logs, 'errors': errors, 'state': final_state}, indent=2) + '\n')
-            print('UI evidence:', json.dumps({'checks': checks, 'errors': errors, 'consoleTail': logs[-10:], 'state': final_state}), flush=True)
+            (args.output / 'logs.json').write_text(json.dumps({'checks': checks, 'console': logs, 'errors': errors, 'state': final_state, 'actions': actions, 'failure': failure}, indent=2) + '\n')
+            print('UI evidence:', json.dumps({'checks': checks, 'errors': errors, 'consoleTail': logs[-10:], 'failure': failure}), flush=True)
             print(f'Uno UI workflows: {len(checks)} passed', flush=True)
             await browser.close()
 asyncio.run(main())

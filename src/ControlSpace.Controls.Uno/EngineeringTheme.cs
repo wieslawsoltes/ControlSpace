@@ -11,15 +11,16 @@ public static class EngineeringTheme
         hex = hex.TrimStart('#'); byte r = Convert.ToByte(hex[..2], 16), g = Convert.ToByte(hex[2..4], 16), b = Convert.ToByte(hex[4..6], 16);
         return new(Windows.UI.Color.FromArgb(255, r, g, b));
     }
+    // Use the host's packaged default font instead of an unavailable system Arial on WASM.
     public static TextBlock Label(string text, double size = 12, string color = "26333E", bool bold = false) => new()
     {
-        Text = text, FontSize = size, Foreground = Brush(color), FontFamily = new FontFamily("Arial"),
+        Text = text, FontSize = size, Foreground = Brush(color),
         FontWeight = bold ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
         VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis
     };
     public static Button Button(string text, Action action, string? automationId = null, string? tip = null)
     {
-        var button = new Button { Content = text, FontSize = 12, FontFamily = new FontFamily("Arial"), Padding = new Thickness(7, 3, 7, 3), MinHeight = 26, MinWidth = 24, CornerRadius = new CornerRadius(0), Background = Brush("E7E7EA"), BorderBrush = Brush("B7B7BF"), BorderThickness = new Thickness(1) };
+        var button = new Button { Content = text, FontSize = 12, Padding = new Thickness(7, 3, 7, 3), MinHeight = 26, MinWidth = 24, CornerRadius = new CornerRadius(0), Background = Brush("E7E7EA"), BorderBrush = Brush("B7B7BF"), BorderThickness = new Thickness(1) };
         button.Click += (_, _) => action(); AutomationProperties.SetName(button, text); if (automationId is not null) AutomationProperties.SetAutomationId(button, automationId);
         if (tip is not null) ToolTipService.SetToolTip(button, tip); return button;
     }

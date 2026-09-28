@@ -95,7 +95,8 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
                 grid.Children.Add(Header("SCL subset: assignments, IF / ELSE, arithmetic and Boolean expressions"));
                 _sourceBase = block.Source;
                 var state = _editorStates.GetValueOrDefault(_view);
-                _source = new TextBox { IsReadOnly = _workspace.Controller?.State == ControllerState.Running, Text = state is not null && state.BaseSource == block.Source ? state.Source : block.Source, AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 14, Padding = new Thickness(14), VerticalAlignment = VerticalAlignment.Stretch };
+                // AcceptsReturn must precede Text: a single-line TextBox coerces multiline source.
+                _source = new TextBox { AcceptsReturn = true, IsReadOnly = _workspace.Controller?.State == ControllerState.Running, Text = state is not null && state.BaseSource == block.Source ? state.Source : block.Source, TextWrapping = TextWrapping.NoWrap, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 14, Padding = new Thickness(14), VerticalAlignment = VerticalAlignment.Stretch };
                 AutomationProperties.SetName(_source, "SCL source editor"); AutomationProperties.SetAutomationId(_source, "scl-source");
                 if (state is not null) _source.Select(Math.Clamp(state.Caret, 0, _source.Text.Length), 0);
                 Grid.SetRow(_source, 1); grid.Children.Add(_source); _editor.Content = grid;
