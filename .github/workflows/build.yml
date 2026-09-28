@@ -1,0 +1,39 @@
+name: Build, test and deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Portable specifications
+        run: dotnet run --project tests/ControlSpace.Tests -c Release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: controlspace-source
+          include-hidden-files: true
+          path: |
+            src/
+            tests/
+            .github/
+            global.json
+            Directory.Build.props
+            README.md
+            LICENSE
+            .gitignore
+            .editorconfig
