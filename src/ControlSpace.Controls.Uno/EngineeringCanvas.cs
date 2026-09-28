@@ -22,6 +22,8 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
     public VirtualPlc? Controller { get; set; }
     public EditorMode Mode { get; set; }
     public string BlockId { get; set; } = "main";
+    public string ScreenId { get; set; } = "";
+    private HmiScreen? CurrentScreen => Project.Screens.FirstOrDefault(s => s.Id == ScreenId) ?? Project.Screens.FirstOrDefault();
     public string? Selection { get; set; }
     public bool HmiRuntime { get; set; }
     public float ScrollOffset { get; set; }
@@ -31,7 +33,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
     public event Action<string, bool>? HmiInput;
     public EngineeringCanvas()
     {
-        MinHeight = 220; MinWidth = 320;
+        MinHeight = 100; MinWidth = 160; IsTabStop = true;
         PointerPressed += Pressed; PointerReleased += Released; PointerCanceled += Cancelled;
         PointerCaptureLost += Cancelled; PointerWheelChanged += Wheel;
         SizeChanged += (_, _) => Invalidate();
@@ -50,7 +52,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
             case EditorMode.Devices: result = _renderer.Devices(canvas, width, height, Project, Selection); break;
             case EditorMode.Hmi:
                 canvas.Clear(SKColor.Parse("#E1E5E8"));
-                if (Project.Screens.Count > 0) result = _renderer.Hmi(canvas, width, height, Project.Screens[0], Project.Tags, snapshot, Selection, HmiRuntime);
+                if (CurrentScreen is HmiScreen screen) result = _renderer.Hmi(canvas, width, height, screen, Project.Tags, snapshot, Selection, HmiRuntime);
                 break;
             case EditorMode.Trace: _renderer.Trace(canvas, width, height, Controller?.Trace.Read() ?? [], Project.Tags); break;
         }
@@ -84,7 +86,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         if (_dragStart is Point start && _dragId is string id)
         {
             var end = e.GetCurrentPoint(this).Position; double scale = 1;
-            if (Mode == EditorMode.Hmi && Project.Screens.Count > 0) scale = Math.Max(.1, Math.Min((ActualWidth - 48) / Project.Screens[0].Width, (ActualHeight - 48) / Project.Screens[0].Height));
+            if (Mode == EditorMode.Hmi && CurrentScreen is HmiScreen screen) scale = Math.Max(.1, Math.Min((ActualWidth - 48) / screen.Width, (ActualHeight - 48) / screen.Height));
             if (Math.Abs(end.X - start.X) + Math.Abs(end.Y - start.Y) > 4)
                 MoveRequested?.Invoke(id, new(Math.Max(0, Math.Round((_original.X + (end.X - start.X) / scale) / 10) * 10), Math.Max(0, Math.Round((_original.Y + (end.Y - start.Y) / scale) / 10) * 10)));
         }

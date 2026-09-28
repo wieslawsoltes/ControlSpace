@@ -19,13 +19,13 @@ public static class EngineeringTheme
     };
     public static Button Button(string text, Action action, string? automationId = null, string? tip = null)
     {
-        var button = new Button { Content = text, FontSize = 12, FontFamily = new FontFamily("Arial"), Padding = new Thickness(9, 5, 9, 5), MinHeight = 28, MinWidth = 24, CornerRadius = new CornerRadius(0), Background = Brush("F0F1F2"), BorderBrush = Brush("B9C1C7"), BorderThickness = new Thickness(1) };
+        var button = new Button { Content = text, FontSize = 12, FontFamily = new FontFamily("Arial"), Padding = new Thickness(7, 3, 7, 3), MinHeight = 26, MinWidth = 24, CornerRadius = new CornerRadius(0), Background = Brush("E7E7EA"), BorderBrush = Brush("B7B7BF"), BorderThickness = new Thickness(1) };
         button.Click += (_, _) => action(); AutomationProperties.SetName(button, text); if (automationId is not null) AutomationProperties.SetAutomationId(button, automationId);
         if (tip is not null) ToolTipService.SetToolTip(button, tip); return button;
     }
-    public static Border Header(string caption, string color = "D9DDE1") => new()
+    public static Border Header(string caption, string color = "D7D7DC") => new()
     {
-        Background = Brush(color), Padding = new Thickness(9, 5, 7, 5), BorderBrush = Brush("ABB6BE"), BorderThickness = new Thickness(0, 0, 0, 1), Child = Label(caption, 12, bold: true)
+        Background = Brush(color), Padding = new Thickness(7, 3, 7, 3), BorderBrush = Brush("ABB6BE"), BorderThickness = new Thickness(0, 0, 0, 1), Child = Label(caption, 12, bold: true)
     };
     public static Border Pane(string title, UIElement content)
     {
