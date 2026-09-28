@@ -1,0 +1,746 @@
+
+> controlspace-interaction-prototype@0.1.0 test
+> node --test tests/prototype/*.test.mjs
+
+TAP version 13
+# Subtest: demo passes schema and compile gates
+ok 1 - demo passes schema and compile gates
+  ---
+  duration_ms: 4.665036
+  type: 'test'
+  ...
+# Subtest: canonical JSON round trip
+ok 2 - canonical JSON round trip
+  ---
+  duration_ms: 1.653721
+  type: 'test'
+  ...
+# Subtest: input model is isolated from compiled image
+ok 3 - input model is isolated from compiled image
+  ---
+  duration_ms: 0.644515
+  type: 'test'
+  ...
+# Subtest: reject schema: unsupported format
+ok 4 - reject schema: unsupported format
+  ---
+  duration_ms: 0.455919
+  type: 'test'
+  ...
+# Subtest: reject schema: future schema
+ok 5 - reject schema: future schema
+  ---
+  duration_ms: 0.252822
+  type: 'test'
+  ...
+# Subtest: reject schema: missing name
+ok 6 - reject schema: missing name
+  ---
+  duration_ms: 0.219673
+  type: 'test'
+  ...
+# Subtest: reject schema: unknown field
+ok 7 - reject schema: unknown field
+  ---
+  duration_ms: 0.328326
+  type: 'test'
+  ...
+# Subtest: reject schema: null tags
+ok 8 - reject schema: null tags
+  ---
+  duration_ms: 0.126531
+  type: 'test'
+  ...
+# Subtest: reject schema: negative revision
+ok 9 - reject schema: negative revision
+  ---
+  duration_ms: 0.435299
+  type: 'test'
+  ...
+# Subtest: reject schema: duplicate names
+ok 10 - reject schema: duplicate names
+  ---
+  duration_ms: 0.607389
+  type: 'test'
+  ...
+# Subtest: reject schema: bad identifier
+ok 11 - reject schema: bad identifier
+  ---
+  duration_ms: 0.307225
+  type: 'test'
+  ...
+# Subtest: reject schema: duplicate IDs
+ok 12 - reject schema: duplicate IDs
+  ---
+  duration_ms: 0.236398
+  type: 'test'
+  ...
+# Subtest: reject schema: wrong address width
+ok 13 - reject schema: wrong address width
+  ---
+  duration_ms: 0.187925
+  type: 'test'
+  ...
+# Subtest: reject schema: overlapping addresses
+ok 14 - reject schema: overlapping addresses
+  ---
+  duration_ms: 0.174975
+  type: 'test'
+  ...
+# Subtest: reject schema: invalid bit address
+ok 15 - reject schema: invalid bit address
+  ---
+  duration_ms: 0.647039
+  type: 'test'
+  ...
+# Subtest: reject schema: invalid initial value
+ok 16 - reject schema: invalid initial value
+  ---
+  duration_ms: 0.148685
+  type: 'test'
+  ...
+# Subtest: reject schema: nonfinite initial value
+ok 17 - reject schema: nonfinite initial value
+  ---
+  duration_ms: 0.151989
+  type: 'test'
+  ...
+# Subtest: reject schema: unknown tag type
+ok 18 - reject schema: unknown tag type
+  ---
+  duration_ms: 0.138579
+  type: 'test'
+  ...
+# Subtest: reject schema: missing tag property
+ok 19 - reject schema: missing tag property
+  ---
+  duration_ms: 0.282368
+  type: 'test'
+  ...
+# Subtest: reject schema: null network
+ok 20 - reject schema: null network
+  ---
+  duration_ms: 0.140012
+  type: 'test'
+  ...
+# Subtest: reject schema: no paths
+ok 21 - reject schema: no paths
+  ---
+  duration_ms: 0.13248
+  type: 'test'
+  ...
+# Subtest: reject schema: empty path
+ok 22 - reject schema: empty path
+  ---
+  duration_ms: 0.132601
+  type: 'test'
+  ...
+# Subtest: reject schema: null instruction
+ok 23 - reject schema: null instruction
+  ---
+  duration_ms: 0.127393
+  type: 'test'
+  ...
+# Subtest: reject schema: invalid instruction kind
+ok 24 - reject schema: invalid instruction kind
+  ---
+  duration_ms: 0.163417
+  type: 'test'
+  ...
+# Subtest: reject schema: duplicate device IP
+ok 25 - reject schema: duplicate device IP
+  ---
+  duration_ms: 0.183758
+  type: 'test'
+  ...
+# Subtest: reject schema: bad IPv4
+ok 26 - reject schema: bad IPv4
+  ---
+  duration_ms: 0.155255
+  type: 'test'
+  ...
+# Subtest: reject schema: missing link endpoint
+ok 27 - reject schema: missing link endpoint
+  ---
+  duration_ms: 0.149066
+  type: 'test'
+  ...
+# Subtest: reject schema: self link
+ok 28 - reject schema: self link
+  ---
+  duration_ms: 0.143237
+  type: 'test'
+  ...
+# Subtest: reject schema: invalid HMI color
+ok 29 - reject schema: invalid HMI color
+  ---
+  duration_ms: 0.146321
+  type: 'test'
+  ...
+# Subtest: reject schema: negative HMI geometry
+ok 30 - reject schema: negative HMI geometry
+  ---
+  duration_ms: 0.186452
+  type: 'test'
+  ...
+# Subtest: reject schema: HMI outside screen
+ok 31 - reject schema: HMI outside screen
+  ---
+  duration_ms: 0.198681
+  type: 'test'
+  ...
+# Subtest: reject schema: HMI unknown tag
+ok 32 - reject schema: HMI unknown tag
+  ---
+  duration_ms: 0.148164
+  type: 'test'
+  ...
+# Subtest: reject schema: oversized screen
+ok 33 - reject schema: oversized screen
+  ---
+  duration_ms: 0.13198
+  type: 'test'
+  ...
+# Subtest: reject schema: too many tags
+ok 34 - reject schema: too many tags
+  ---
+  duration_ms: 0.111148
+  type: 'test'
+  ...
+# Subtest: case-insensitive address widths are accepted
+ok 35 - case-insensitive address widths are accepted
+  ---
+  duration_ms: 0.171409
+  type: 'test'
+  ...
+# Subtest: duplicate JSON keys rejected before model materialization
+ok 36 - duplicate JSON keys rejected before model materialization
+  ---
+  duration_ms: 0.467758
+  type: 'test'
+  ...
+# Subtest: duplicate nested JSON keys rejected
+ok 37 - duplicate nested JSON keys rejected
+  ---
+  duration_ms: 0.623383
+  type: 'test'
+  ...
+# Subtest: oversized JSON rejected
+ok 38 - oversized JSON rejected
+  ---
+  duration_ms: 5.550085
+  type: 'test'
+  ...
+# Subtest: malformed JSON rejected
+ok 39 - malformed JSON rejected
+  ---
+  duration_ms: 0.555711
+  type: 'test'
+  ...
+# Subtest: CSV handles commas, quotes and embedded newlines
+ok 40 - CSV handles commas, quotes and embedded newlines
+  ---
+  duration_ms: 0.545766
+  type: 'test'
+  ...
+# Subtest: CSV wrong header rejected
+ok 41 - CSV wrong header rejected
+  ---
+  duration_ms: 0.139981
+  type: 'test'
+  ...
+# Subtest: CSV malformed quoting rejected
+ok 42 - CSV malformed quoting rejected
+  ---
+  duration_ms: 0.189747
+  type: 'test'
+  ...
+# Subtest: Bool value limits
+ok 43 - Bool value limits
+  ---
+  duration_ms: 0.070376
+  type: 'test'
+  ...
+# Subtest: Int value limits
+ok 44 - Int value limits
+  ---
+  duration_ms: 0.06601
+  type: 'test'
+  ...
+# Subtest: DInt value limits
+ok 45 - DInt value limits
+  ---
+  duration_ms: 0.038969
+  type: 'test'
+  ...
+# Subtest: Time value limits
+ok 46 - Time value limits
+  ---
+  duration_ms: 0.033331
+  type: 'test'
+  ...
+# Subtest: Real value limits
+ok 47 - Real value limits
+  ---
+  duration_ms: 0.031508
+  type: 'test'
+  ...
+# Subtest: Boolean and time formatting
+ok 48 - Boolean and time formatting
+  ---
+  duration_ms: 0.071938
+  type: 'test'
+  ...
+# Subtest: SCL executes precedence
+ok 49 - SCL executes precedence
+  ---
+  duration_ms: 1.555833
+  type: 'test'
+  ...
+# Subtest: SCL executes parentheses
+ok 50 - SCL executes parentheses
+  ---
+  duration_ms: 0.286854
+  type: 'test'
+  ...
+# Subtest: SCL executes unary
+ok 51 - SCL executes unary
+  ---
+  duration_ms: 0.242838
+  type: 'test'
+  ...
+# Subtest: SCL executes modulo
+ok 52 - SCL executes modulo
+  ---
+  duration_ms: 0.222707
+  type: 'test'
+  ...
+# Subtest: SCL executes exponent
+ok 53 - SCL executes exponent
+  ---
+  duration_ms: 0.426525
+  type: 'test'
+  ...
+# Subtest: SCL executes boolean
+ok 54 - SCL executes boolean
+  ---
+  duration_ms: 0.374947
+  type: 'test'
+  ...
+# Subtest: SCL executes xor
+ok 55 - SCL executes xor
+  ---
+  duration_ms: 0.23135
+  type: 'test'
+  ...
+# Subtest: SCL executes comparison
+ok 56 - SCL executes comparison
+  ---
+  duration_ms: 0.310269
+  type: 'test'
+  ...
+# Subtest: SCL executes if else
+ok 57 - SCL executes if else
+  ---
+  duration_ms: 0.272412
+  type: 'test'
+  ...
+# Subtest: SCL executes nested if
+ok 58 - SCL executes nested if
+  ---
+  duration_ms: 0.242016
+  type: 'test'
+  ...
+# Subtest: SCL executes case insensitive
+ok 59 - SCL executes case insensitive
+  ---
+  duration_ms: 0.234335
+  type: 'test'
+  ...
+# Subtest: SCL executes comments
+ok 60 - SCL executes comments
+  ---
+  duration_ms: 0.827612
+  type: 'test'
+  ...
+# Subtest: SCL executes quoted tags
+ok 61 - SCL executes quoted tags
+  ---
+  duration_ms: 0.247254
+  type: 'test'
+  ...
+# Subtest: SCL rejects input write
+ok 62 - SCL rejects input write
+  ---
+  duration_ms: 0.289088
+  type: 'test'
+  ...
+# Subtest: SCL rejects unknown symbol
+ok 63 - SCL rejects unknown symbol
+  ---
+  duration_ms: 0.187734
+  type: 'test'
+  ...
+# Subtest: SCL rejects missing semicolon
+ok 64 - SCL rejects missing semicolon
+  ---
+  duration_ms: 0.208025
+  type: 'test'
+  ...
+# Subtest: SCL rejects mixed type
+ok 65 - SCL rejects mixed type
+  ---
+  duration_ms: 0.208595
+  type: 'test'
+  ...
+# Subtest: SCL rejects bad boolean
+ok 66 - SCL rejects bad boolean
+  ---
+  duration_ms: 0.170488
+  type: 'test'
+  ...
+# Subtest: SCL rejects numeric AND
+ok 67 - SCL rejects numeric AND
+  ---
+  duration_ms: 0.167373
+  type: 'test'
+  ...
+# Subtest: SCL rejects unsupported loop
+ok 68 - SCL rejects unsupported loop
+  ---
+  duration_ms: 0.197268
+  type: 'test'
+  ...
+# Subtest: SCL rejects unsupported call
+ok 69 - SCL rejects unsupported call
+  ---
+  duration_ms: 0.176266
+  type: 'test'
+  ...
+# Subtest: SCL rejects unclosed comment
+ok 70 - SCL rejects unclosed comment
+  ---
+  duration_ms: 0.434598
+  type: 'test'
+  ...
+# Subtest: SCL rejects unclosed quote
+ok 71 - SCL rejects unclosed quote
+  ---
+  duration_ms: 0.194354
+  type: 'test'
+  ...
+# Subtest: SCL rejects unmatched parens
+ok 72 - SCL rejects unmatched parens
+  ---
+  duration_ms: 0.178661
+  type: 'test'
+  ...
+# Subtest: SCL rejects excessive depth
+ok 73 - SCL rejects excessive depth
+  ---
+  duration_ms: 0.322638
+  type: 'test'
+  ...
+# Subtest: SCL error has line and column
+ok 74 - SCL error has line and column
+  ---
+  duration_ms: 0.260424
+  type: 'test'
+  ...
+# Subtest: SCL rename preserves comments and longer identifiers
+ok 75 - SCL rename preserves comments and longer identifiers
+  ---
+  duration_ms: 0.171489
+  type: 'test'
+  ...
+# Subtest: SCL script injection is rejected, never evaluated
+ok 76 - SCL script injection is rejected, never evaluated
+  ---
+  duration_ms: 0.206533
+  type: 'test'
+  ...
+# Subtest: noncyclic blocks validate but do not execute
+ok 77 - noncyclic blocks validate but do not execute
+  ---
+  duration_ms: 0.263519
+  type: 'test'
+  ...
+# Subtest: LAD seal-in, TON, SCL and stop inhibit
+ok 78 - LAD seal-in, TON, SCL and stop inhibit
+  ---
+  duration_ms: 1.571778
+  type: 'test'
+  ...
+# Subtest: CountUp counts only edges and reset has priority
+ok 79 - CountUp counts only edges and reset has priority
+  ---
+  duration_ms: 0.391822
+  type: 'test'
+  ...
+# Subtest: TON exact preset and reset
+ok 80 - TON exact preset and reset
+  ---
+  duration_ms: 0.290589
+  type: 'test'
+  ...
+# Subtest: TOF holds output for two inactive scans
+ok 81 - TOF holds output for two inactive scans
+  ---
+  duration_ms: 0.250469
+  type: 'test'
+  ...
+# Subtest: TP cannot retrigger while input remains high
+ok 82 - TP cannot retrigger while input remains high
+  ---
+  duration_ms: 0.256879
+  type: 'test'
+  ...
+# Subtest: LAD Coil semantics
+ok 83 - LAD Coil semantics
+  ---
+  duration_ms: 0.265892
+  type: 'test'
+  ...
+# Subtest: LAD SetCoil semantics
+ok 84 - LAD SetCoil semantics
+  ---
+  duration_ms: 0.203488
+  type: 'test'
+  ...
+# Subtest: LAD ResetCoil semantics
+ok 85 - LAD ResetCoil semantics
+  ---
+  duration_ms: 0.233363
+  type: 'test'
+  ...
+# Subtest: MOVE transfers a representable constant
+ok 86 - MOVE transfers a representable constant
+  ---
+  duration_ms: 0.237099
+  type: 'test'
+  ...
+# Subtest: LAD Greater comparison
+ok 87 - LAD Greater comparison
+  ---
+  duration_ms: 0.289979
+  type: 'test'
+  ...
+# Subtest: LAD Less comparison
+ok 88 - LAD Less comparison
+  ---
+  duration_ms: 0.194765
+  type: 'test'
+  ...
+# Subtest: LAD Equal comparison
+ok 89 - LAD Equal comparison
+  ---
+  duration_ms: 0.199111
+  type: 'test'
+  ...
+# Subtest: rising edge remains one scan
+ok 90 - rising edge remains one scan
+  ---
+  duration_ms: 0.227965
+  type: 'test'
+  ...
+# Subtest: falling edge detects high-to-low only
+ok 91 - falling edge detects high-to-low only
+  ---
+  duration_ms: 0.516781
+  type: 'test'
+  ...
+# Subtest: compiler rejects unknown operand
+ok 92 - compiler rejects unknown operand
+  ---
+  duration_ms: 0.359283
+  type: 'test'
+  ...
+# Subtest: compiler rejects input output
+ok 93 - compiler rejects input output
+  ---
+  duration_ms: 0.265631
+  type: 'test'
+  ...
+# Subtest: compiler rejects numeric coil
+ok 94 - compiler rejects numeric coil
+  ---
+  duration_ms: 0.268296
+  type: 'test'
+  ...
+# Subtest: compiler rejects invalid timer preset
+ok 95 - compiler rejects invalid timer preset
+  ---
+  duration_ms: 0.230349
+  type: 'test'
+  ...
+# Subtest: compiler rejects timer elapsed type
+ok 96 - compiler rejects timer elapsed type
+  ---
+  duration_ms: 0.232262
+  type: 'test'
+  ...
+# Subtest: compiler rejects counter reset type
+ok 97 - compiler rejects counter reset type
+  ---
+  duration_ms: 0.258231
+  type: 'test'
+  ...
+# Subtest: ordinary stopped controller does not scan
+ok 98 - ordinary stopped controller does not scan
+  ---
+  duration_ms: 0.506716
+  type: 'test'
+  ...
+# Subtest: scan periods are bounded integer milliseconds
+ok 99 - scan periods are bounded integer milliseconds
+  ---
+  duration_ms: 0.498874
+  type: 'test'
+  ...
+# Subtest: input writes reject memory tags and invalid Boolean values
+ok 100 - input writes reject memory tags and invalid Boolean values
+  ---
+  duration_ms: 0.339914
+  type: 'test'
+  ...
+# Subtest: force applied before and after scan, release and stop clear forces
+ok 101 - force applied before and after scan, release and stop clear forces
+  ---
+  duration_ms: 0.979531
+  type: 'test'
+  ...
+# Subtest: fault rolls back prior writes and clears outputs
+ok 102 - fault rolls back prior writes and clears outputs
+  ---
+  duration_ms: 0.393235
+  type: 'test'
+  ...
+# Subtest: fault restart requires explicit reset even after Stop
+ok 103 - fault restart requires explicit reset even after Stop
+  ---
+  duration_ms: 0.471724
+  type: 'test'
+  ...
+# Subtest: integer assignment overflow faults deterministically
+ok 104 - integer assignment overflow faults deterministically
+  ---
+  duration_ms: 0.252832
+  type: 'test'
+  ...
+# Subtest: warm reset retains only retained memory tags
+ok 105 - warm reset retains only retained memory tags
+  ---
+  duration_ms: 0.407657
+  type: 'test'
+  ...
+# Subtest: snapshot values are independent from live values
+ok 106 - snapshot values are independent from live values
+  ---
+  duration_ms: 0.401097
+  type: 'test'
+  ...
+# Subtest: bounded trace order and reset
+ok 107 - bounded trace order and reset
+  ---
+  duration_ms: 0.173592
+  type: 'test'
+  ...
+# Subtest: 2048-sample trace remains bounded
+ok 108 - 2048-sample trace remains bounded
+  ---
+  duration_ms: 22.079357
+  type: 'test'
+  ...
+# Subtest: workspace edits are transactional with undo/redo
+ok 109 - workspace edits are transactional with undo/redo
+  ---
+  duration_ms: 2.152746
+  type: 'test'
+  ...
+# Subtest: rejected edit changes neither model nor history
+ok 110 - rejected edit changes neither model nor history
+  ---
+  duration_ms: 1.562754
+  type: 'test'
+  ...
+# Subtest: history is bounded and redo is cleared by new edit
+ok 111 - history is bounded and redo is cleared by new edit
+  ---
+  duration_ms: 3.641498
+  type: 'test'
+  ...
+# Subtest: no-op edit does not create history
+ok 112 - no-op edit does not create history
+  ---
+  duration_ms: 2.051223
+  type: 'test'
+  ...
+# Subtest: editing while running is rejected
+ok 113 - editing while running is rejected
+  ---
+  duration_ms: 1.333166
+  type: 'test'
+  ...
+# Subtest: undo stops and invalidates the compiled runtime
+ok 114 - undo stops and invalidates the compiled runtime
+  ---
+  duration_ms: 1.719591
+  type: 'test'
+  ...
+# Subtest: rename propagates to LAD, SCL, HMI atomically
+ok 115 - rename propagates to LAD, SCL, HMI atomically
+  ---
+  duration_ms: 1.516033
+  type: 'test'
+  ...
+# Subtest: rename with invalid property update rolls back everything
+ok 116 - rename with invalid property update rolls back everything
+  ---
+  duration_ms: 0.980623
+  type: 'test'
+  ...
+# Subtest: load invalid project preserves current workspace
+ok 117 - load invalid project preserves current workspace
+  ---
+  duration_ms: 1.132914
+  type: 'test'
+  ...
+# Subtest: LAD references include counter reset and timer elapsed access
+ok 118 - LAD references include counter reset and timer elapsed access
+  ---
+  duration_ms: 0.807562
+  type: 'test'
+  ...
+# Subtest: shared cross-language conveyor fixture
+ok 119 - shared cross-language conveyor fixture
+  ---
+  duration_ms: 36.396614
+  type: 'test'
+  ...
+# Subtest: rename quoted keyword identifiers preserves SCL control-flow keywords
+ok 120 - rename quoted keyword identifiers preserves SCL control-flow keywords
+  ---
+  duration_ms: 0.171981
+  type: 'test'
+  ...
+# Subtest: empty HMI and non-demo trace scenes do not throw
+ok 121 - empty HMI and non-demo trace scenes do not throw
+  ---
+  duration_ms: 7.361836
+  type: 'test'
+  ...
+# Subtest: stopped ladder has no energized rails and running scan enables power flow
+ok 122 - stopped ladder has no energized rails and running scan enables power flow
+  ---
+  duration_ms: 2.094689
+  type: 'test'
+  ...
+1..122
+# tests 122
+# suites 0
+# pass 122
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 183.004476

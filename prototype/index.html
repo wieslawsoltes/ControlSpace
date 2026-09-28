@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#53687b"><meta name="description" content="ControlSpace engineering interaction prototype. Independent TIA Portal-style workspace; simulation only."><title>ControlSpace — Engineering workspace</title><link rel="stylesheet" href="ui/styles.css"></head>
+<body>
+<div id="app">
+<header class="titlebar"><span class="brand-mark">C<span>•</span></span><strong id="project-title">Conveyor_Line</strong><span class="app-title">— ControlSpace</span><span class="title-spacer"></span><span class="prototype-badge" title="This preview runs JavaScript, not the Uno application. The .NET/Uno sources are delivered separately.">INTERACTION PROTOTYPE</span><button data-action="about" title="About ControlSpace">?</button></header>
+<nav class="menubar" aria-label="Application menus" id="menubar"></nav>
+<div class="toolbar" role="toolbar" aria-label="Project and simulation commands">
+<button data-action="new" title="New demo project"><span class="ico">▤</span>New</button><button data-action="open" title="Open ControlSpace JSON"><span class="ico gold">▱</span>Open</button><button data-action="save" title="Export project · Ctrl+S"><span class="ico blue">▣</span>Save</button><i></i><button data-action="undo" title="Undo · Ctrl+Z">↶</button><button data-action="redo" title="Redo · Ctrl+Y">↷</button><i></i><button data-action="compile" title="Compile all blocks · F7"><span class="ico blue">▧</span>Compile</button><button data-action="run" title="Run virtual PLC · F5"><span class="ico green">▶</span>Start simulation</button><button data-action="stop" title="Stop and clear outputs · Escape"><span class="ico red">■</span>Stop</button><button data-action="step" title="Execute one 100 ms virtual scan">▸│ Single scan</button><i></i><button data-action="monitor" class="monitor-command">◉ Monitor</button><span class="toolbar-spacer"></span><span class="safe-label"><span class="status-dot"></span>SIMULATION ONLY</span>
+</div>
+<main class="workbench" id="workbench">
+<aside class="project-pane" aria-label="Project tree"><div class="pane-heading">Project tree<span>−　⌖</span></div><div class="pane-tabs"><button class="active" data-view="block:main">Devices</button><button data-view="library">Libraries</button></div><label class="searchbox"><span>⌕</span><input id="project-search" placeholder="Search in project" aria-label="Search project"><kbd>⌘ F</kbd></label><div id="tree" class="tree"></div><div class="tree-footer"><span class="offline-dot"></span>Local project<span id="tree-revision">rev. 0</span></div></aside>
+<div class="splitter left-splitter" role="separator" aria-label="Resize project tree" tabindex="0"></div>
+<section class="center-pane" aria-label="Engineering editor">
+<div class="breadcrumb"><span id="breadcrumb">Conveyor_Line › PLC_1 › Program blocks › Main [OB1]</span><span>⌂　▾</span></div>
+<div class="editor-title"><span class="document-icon" id="document-icon">▧</span><strong id="editor-name">Main [OB1]</strong><span id="language-badge">LAD</span><span class="toolbar-spacer"></span><button data-action="fit" title="Fit view">⛶</button></div>
+<div class="editor-tools" id="editor-tools" role="toolbar" aria-label="Editor commands"></div>
+<div id="editor-body" class="editor-body"><div class="declarations" id="declarations"><span>▸　Block interface</span><span>Input　 Output　 InOut　 Static　 Temp　 Constant</span><span>Local tags: 0</span></div><div class="viewport" id="viewport" tabindex="0" role="application" aria-label="Ladder editor. Select instructions using the instruction list in the right pane."><canvas id="geometry"></canvas><canvas id="labels"></canvas><div id="scroll-thumb"></div></div><div id="html-editor" class="html-editor" hidden></div></div>
+<div class="document-tabs" id="document-tabs" role="tablist" aria-label="Open editors"></div>
+<div class="bottom-splitter" role="separator" aria-label="Resize output pane" tabindex="0"></div>
+<section class="output-pane" aria-label="Inspection and output"><div class="output-tabs"><button data-bottom="general">Properties</button><button data-bottom="messages" class="active">Info<span id="message-count">1</span></button><button data-bottom="inputs">Simulation inputs</button><button data-bottom="diagnostics">Diagnostics</button><span class="toolbar-spacer"></span><span id="compile-status">Not compiled</span></div><div id="output-content" class="output-content"></div></section>
+</section>
+<div class="splitter right-splitter" role="separator" aria-label="Resize task pane" tabindex="0"></div>
+<aside class="task-pane" aria-label="Instructions and properties"><div class="pane-heading"><span id="task-heading">Instructions</span><span>⌖　×</span></div><div class="task-tabs"><button data-task="instructions" class="active">Instructions</button><button data-task="properties">Properties</button></div><div id="task-content" class="task-content"></div><div class="task-footer"><span>▣</span>　Reusable engineering components</div></aside>
+</main>
+<footer class="statusbar"><button data-view="portal" class="portal-switch">◧　Portal view</button><span id="status-message" role="status" aria-live="polite">Ready. Offline engineering · no controller connection.</span><span class="toolbar-spacer"></span><span id="backend">Renderer initializing</span><span class="status-separator"></span><span id="runtime-state">● STOP</span><span id="runtime-metrics">0 scans</span><span class="status-separator"></span><span id="zoom-label">100%</span></footer>
+</div>
+<input id="file-input" type="file" accept=".json,.csv" hidden>
+<dialog id="modal"><div class="modal-heading"><strong id="modal-title"></strong><button data-action="close-modal" aria-label="Close dialog">×</button></div><div id="modal-body"></div><div class="modal-footer"><button data-action="close-modal" class="primary">Close</button></div></dialog>
+<div id="toast" role="alert" hidden></div>
+<script type="module" src="ui/app.js"></script>
+</body></html>

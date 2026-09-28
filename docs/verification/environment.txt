@@ -1,0 +1,16 @@
+Verification captured: 2026-09-28
+Node.js: v22.16.0
+Python: 3.13.5
+Chromium: 144.0.7559.96 (Debian GNU/Linux 13)
+Operating system: Linux container
+.NET SDK: unavailable; `dotnet --info` -> command not found
+Remote network: `git ls-remote https://github.com/wieslawsoltes/ControlSpace.git`
+  -> fatal: unable to access repository: Could not resolve host: github.com
+GitHub connector: read actions available; no mutation actions exposed
+Browser navigation: blocked by managed browser policy; policy was not modified
+Browser test mode: Playwright set_content with bundled inline source
+Browser Storage: explicit in-memory test double, plus separate denied-access case
+Renderer exercised: Canvas 2D geometry fallback and Canvas 2D text
+Hardware WebGPU: not exercised
+Uno desktop/browser builds: not performed
+GitHub Actions, release, and Pages: not executed or deployed

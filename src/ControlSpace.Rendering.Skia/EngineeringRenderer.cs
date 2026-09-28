@@ -1,0 +1,193 @@
+using ControlSpace.Core;
+using ControlSpace.Simulation;
+using SkiaSharp;
+namespace ControlSpace.Rendering.Skia;
+
+public sealed record HitRegion(string Id, string Kind, RectD Bounds);
+public sealed record RenderResult(IReadOnlyList<HitRegion> Hits, float ContentHeight);
+public sealed class EngineeringRenderer : IDisposable
+{
+    private readonly SKPaint _paint = new() { IsAntialias = true };
+    private readonly SKTypeface _face = SKTypeface.FromFamilyName("Arial") ?? SKTypeface.Default;
+    private readonly SKTypeface _boldFace = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) ?? SKTypeface.Default;
+    private readonly SKFont _font;
+    private readonly SKFont _bold;
+    private static readonly SKColor Ink = SKColor.Parse("#24313D"), Teal = SKColor.Parse("#008C95"), Gray = SKColor.Parse("#DADDDD"), Active = SKColor.Parse("#1A9F57");
+    public EngineeringRenderer() { _font = new(_face, 12); _bold = new(_boldFace, 12); }
+    private void Color(SKColor color, bool stroke = false, float width = 1) { _paint.Color = color; _paint.Style = stroke ? SKPaintStyle.Stroke : SKPaintStyle.Fill; _paint.StrokeWidth = width; }
+    private void Text(SKCanvas c, string text, float x, float y, SKColor? color = null, float size = 12, bool bold = false)
+    {
+        Color(color ?? Ink); var font = bold ? _bold : _font; font.Size = size; c.DrawText(text ?? "", x, y, font, _paint);
+    }
+    private void Box(SKCanvas c, float x, float y, float w, float h, SKColor fill, SKColor? stroke = null)
+    {
+        Color(fill); c.DrawRect(x, y, w, h, _paint); if (stroke is not null) { Color(stroke.Value, true); c.DrawRect(x, y, w, h, _paint); }
+    }
+    private void Line(SKCanvas c, float x1, float y1, float x2, float y2, SKColor? color = null, float width = 1)
+    {
+        Color(color ?? Ink, true, width); c.DrawLine(x1, y1, x2, y2, _paint);
+    }
+    public RenderResult Ladder(SKCanvas canvas, float width, float height, ProgramBlock block, IReadOnlyList<PlcTag> tags, ScanSnapshot? snapshot, string? selection = null, float scroll = 0, float zoom = 1)
+    {
+        var hits = new List<HitRegion>(); var byName = tags.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
+        canvas.Clear(SKColors.White); canvas.Save(); canvas.Scale(zoom); canvas.Translate(0, -scroll);
+        float logicalWidth = Math.Max(580, width / zoom), y = 0;
+        bool Flow(string id) => snapshot is not null && snapshot.Flow.TryGetValue(id, out bool active) && active;
+        foreach (var (network, index) in block.Networks.Select((n, i) => (n, i)))
+        {
+            float networkHeight = Math.Max(176, 122 + 56 * network.Branches.Count);
+            if (y + networkHeight < scroll || y > scroll + height / zoom) { y += networkHeight + 12; continue; }
+            Box(canvas, 0, y, logicalWidth, 26, Gray);
+            Text(canvas, $"▾  Network {index + 1}:  {network.Title}", 12, y + 18, size: 12, bold: true);
+            Text(canvas, network.Comment, 20, y + 46, SKColor.Parse("#66737D"), 11);
+            float left = 44, merge = logicalWidth - 205, outputX = logicalWidth - 115, firstY = y + 98;
+            float lastY = firstY + (network.Branches.Count - 1) * 56;
+            Line(canvas, left, firstY - 21, left, lastY + 24, Flow(network.Id) ? Active : Ink, 2);
+            if (network.Branches.Count > 1) Line(canvas, merge, firstY, merge, lastY, Flow(network.Id) ? Active : Ink);
+            foreach (var (branch, branchIndex) in network.Branches.Select((b, i) => (b, i)))
+            {
+                float lineY = firstY + branchIndex * 56, spacing = (merge - left - 24) / Math.Max(branch.Count, 1);
+                Line(canvas, left, lineY, merge, lineY, Flow(network.Id) ? Active : Ink);
+                for (int j = 0; j < branch.Count; j++)
+                {
+                    float x = left + 22 + spacing * (j + .5f); var instruction = branch[j];
+                    var region = new RectD(x - 48, lineY - 39, 96, 54); hits.Add(new(instruction.Id, "instruction", region));
+                    if (selection == instruction.Id) Box(canvas, (float)region.X, (float)region.Y, (float)region.Width, (float)region.Height, SKColor.Parse("#EAF5FC"), SKColor.Parse("#4098CC"));
+                    var color = Flow(instruction.Id) ? Active : Ink;
+                    Box(canvas, x - 15, lineY - 12, 30, 25, SKColors.White);
+                    if (instruction.Kind is InstructionKind.Greater or InstructionKind.Less or InstructionKind.Equal)
+                    {
+                        Text(canvas, instruction.Kind == InstructionKind.Greater ? ">" : instruction.Kind == InstructionKind.Less ? "<" : "==", x - 10, lineY + 4, color, 16, true);
+                        Text(canvas, instruction.Parameter.ToString("0.##"), x - 9, lineY + 24, Teal, 10);
+                    }
+                    else
+                    {
+                        Line(canvas, x - 7, lineY - 10, x - 7, lineY + 10, color, 1.5f); Line(canvas, x + 7, lineY - 10, x + 7, lineY + 10, color, 1.5f);
+                        if (instruction.Kind == InstructionKind.NegatedContact) Line(canvas, x - 13, lineY + 13, x + 13, lineY - 13, color, 1.5f);
+                        if (instruction.Kind is InstructionKind.RisingEdge or InstructionKind.FallingEdge) Text(canvas, instruction.Kind == InstructionKind.RisingEdge ? "P" : "N", x - 4, lineY + 4, color, 10);
+                    }
+                    Text(canvas, instruction.Tag, x - 43, lineY - 21, Teal, 11);
+                    if (byName.TryGetValue(instruction.Tag, out var tag)) Text(canvas, tag.Address, x - 18, lineY - 35, Teal, 10);
+                }
+            }
+            Line(canvas, merge, firstY, logicalWidth - 34, firstY, Flow(network.Id) ? Active : Ink);
+            var o = network.Output; var outputRegion = new RectD(outputX - 58, firstY - 45, 116, 94); hits.Add(new(o.Id, "instruction", outputRegion));
+            if (selection == o.Id) Box(canvas, (float)outputRegion.X, (float)outputRegion.Y, 116, 94, SKColor.Parse("#EAF5FC"), SKColor.Parse("#4098CC"));
+            bool blockOutput = o.Kind is InstructionKind.TimerOn or InstructionKind.TimerOff or InstructionKind.Pulse or InstructionKind.CountUp or InstructionKind.Move;
+            if (blockOutput)
+            {
+                Box(canvas, outputX - 44, firstY - 18, 88, 62, SKColor.Parse("#EDF0F4"), Flow(o.Id) ? Active : SKColor.Parse("#81919C"));
+                Box(canvas, outputX - 44, firstY - 18, 88, 20, SKColor.Parse("#D9E0E8"));
+                string caption = o.Kind switch { InstructionKind.TimerOn => "TON", InstructionKind.TimerOff => "TOF", InstructionKind.Pulse => "TP", InstructionKind.CountUp => "CTU", _ => "MOVE" };
+                Text(canvas, caption, outputX - 12, firstY - 4, bold: true);
+                Text(canvas, "IN", outputX - 38, firstY + 16, size: 10); Text(canvas, "Q", outputX + 30, firstY + 16, size: 10);
+                Text(canvas, o.Kind == InstructionKind.CountUp ? "R: " + o.Auxiliary : "PT: " + o.Parameter + " ms", outputX - 38, firstY + 35, Teal, 10);
+            }
+            else
+            {
+                Box(canvas, outputX - 17, firstY - 15, 34, 30, SKColors.White);
+                Color(Flow(o.Id) ? Active : Ink, true, 1.5f);
+                canvas.DrawArc(new SKRect(outputX - 12, firstY - 12, outputX + 3, firstY + 12), 100, 160, false, _paint);
+                canvas.DrawArc(new SKRect(outputX - 3, firstY - 12, outputX + 12, firstY + 12), -80, 160, false, _paint);
+                if (o.Kind is InstructionKind.SetCoil or InstructionKind.ResetCoil) Text(canvas, o.Kind == InstructionKind.SetCoil ? "S" : "R", outputX - 4, firstY + 4, size: 10);
+            }
+            Text(canvas, o.Tag, outputX - 44, firstY - (blockOutput ? 27 : 23), Teal, 11);
+            if (byName.TryGetValue(o.Tag, out var outTag)) Text(canvas, outTag.Address, outputX - 18, firstY - (blockOutput ? 42 : 37), Teal, 10);
+            y += networkHeight + 12;
+        }
+        canvas.Restore(); return new(hits, y);
+    }
+    public RenderResult Devices(SKCanvas canvas, float width, float height, ControlProject project, string? selection = null)
+    {
+        canvas.Clear(SKColor.Parse("#FAFBFC")); var hits = new List<HitRegion>();
+        for (float x = 0; x < width; x += 20) for (float y = 0; y < height; y += 20) { Color(SKColor.Parse("#DCE3E7")); canvas.DrawCircle(x, y, .65f, _paint); }
+        foreach (var link in project.Links)
+        {
+            var a = project.Devices.Find(d => d.Id == link.From); var b = project.Devices.Find(d => d.Id == link.To); if (a is null || b is null) continue;
+            float ax = (float)a.X + 100, bx = (float)b.X + 100, ay = (float)a.Y + 168, by = (float)b.Y + 168, busY = Math.Max(ay, by) + 50;
+            Line(canvas, ax, ay, ax, busY, Active, 3); Line(canvas, ax, busY, bx, busY, Active, 3); Line(canvas, bx, busY, bx, by, Active, 3);
+            Text(canvas, link.Subnet, (ax + bx) / 2 - 26, busY + 20, Active, 11);
+        }
+        foreach (var device in project.Devices)
+        {
+            float x = (float)device.X, y = (float)device.Y; hits.Add(new(device.Id, "device", new(x, y, 230, 172)));
+            if (device.Id == selection) Box(canvas, x - 5, y - 29, 240, 202, SKColor.Parse("#E8F2FB"), SKColor.Parse("#468FC0"));
+            Text(canvas, device.Name, x + 4, y - 10, Teal, 13, true);
+            Box(canvas, x, y, 230, 136, SKColor.Parse("#454D54"), SKColor.Parse("#252C32"));
+            Box(canvas, x + 8, y + 9, 214, 21, Teal); Text(canvas, device.Kind == DeviceKind.Hmi ? "CONTROLSPACE HMI" : "CONTROLSPACE / IO", x + 15, y + 24, SKColors.White, 10, true);
+            if (device.Kind == DeviceKind.Hmi)
+            {
+                Box(canvas, x + 17, y + 43, 196, 77, SKColor.Parse("#DCE8EE")); Text(canvas, "Production overview", x + 27, y + 68, Teal, 12);
+                Box(canvas, x + 29, y + 81, 58, 23, Teal); Text(canvas, "START", x + 41, y + 97, SKColors.White, 10);
+            }
+            else
+            {
+                for (int i = 0; i < Math.Min(device.Modules.Count, 5); i++)
+                {
+                    float mx = x + 10 + i * 43; Box(canvas, mx, y + 40, 38, 82, SKColor.Parse("#65727C"), SKColor.Parse("#222B33"));
+                    for (int led = 0; led < 4; led++) { Color(led == 0 ? Active : SKColor.Parse("#A5ADAA")); canvas.DrawCircle(mx + 8, y + 50 + led * 10, 2, _paint); }
+                    Text(canvas, (i + 1).ToString(), mx + 14, y + 111, SKColors.White, 11);
+                }
+            }
+            Text(canvas, device.IpAddress, x + 5, y + 155, Teal, 11); Text(canvas, "Offline device configuration", x + 5, y + 172, SKColor.Parse("#738390"), 10);
+        }
+        return new(hits, height);
+    }
+    public RenderResult Hmi(SKCanvas canvas, float width, float height, HmiScreen screen, IReadOnlyList<PlcTag> tags, ScanSnapshot? snapshot, string? selection = null, bool runtime = false)
+    {
+        canvas.Clear(SKColor.Parse("#E1E5E8")); var hits = new List<HitRegion>();
+        float scale = Math.Min((width - 48) / (float)screen.Width, (height - 48) / (float)screen.Height); scale = Math.Max(.1f, scale);
+        canvas.Save(); canvas.Translate(24, 24); canvas.Scale(scale); Box(canvas, 0, 0, (float)screen.Width, (float)screen.Height, SKColor.Parse("#F7FAFC"), SKColor.Parse("#8D9DA7"));
+        if (!runtime) for (float x = 0; x < screen.Width; x += 20) for (float y = 0; y < screen.Height; y += 20) { Color(SKColor.Parse("#DFE8EC")); canvas.DrawCircle(x, y, .7f, _paint); }
+        foreach (var o in screen.Objects)
+        {
+            float x = (float)o.X, y = (float)o.Y, w = (float)o.Width, h = (float)o.Height; var color = SKColor.TryParse(o.Color, out var parsed) ? parsed : Teal;
+            int slot = tags.ToList().FindIndex(t => t.Name.Equals(o.Tag, StringComparison.OrdinalIgnoreCase)); double value = slot < 0 ? 0 : snapshot?.Values[slot] ?? tags[slot].InitialValue;
+            hits.Add(new(o.Id, "hmi", new(24 + x * scale, 24 + y * scale, w * scale, h * scale)));
+            switch (o.Kind)
+            {
+                case HmiKind.Label: Text(canvas, o.Text, x, y + h * .72f, color, h > 35 ? 26 : 15, h > 35); break;
+                case HmiKind.Button:
+                    Box(canvas, x, y, w, h, value != 0 ? Active : color); Text(canvas, o.Text, x + 24, y + h / 2 + 6, SKColors.White, 17, true); break;
+                case HmiKind.Lamp:
+                    Box(canvas, x, y, w, h, SKColors.White, SKColor.Parse("#D7E2E7")); Color(value != 0 ? Active : SKColor.Parse("#A7B5BD")); canvas.DrawCircle(x + 23, y + h / 2, 7, _paint);
+                    Text(canvas, o.Text, x + 41, y + h / 2 - 4, size: 12, bold: true); Text(canvas, value != 0 ? "Active" : "Inactive", x + 41, y + h / 2 + 17, Teal, 12); break;
+                case HmiKind.Numeric:
+                    Box(canvas, x, y, w, h, SKColors.White, SKColor.Parse("#D7E2E7")); Text(canvas, o.Text, x + 18, y + 23, Teal, 12, true); Text(canvas, value.ToString("0.##"), x + 18, y + 76, size: 38, bold: true); break;
+                case HmiKind.Tank:
+                    Box(canvas, x, y, w, h, SKColor.Parse("#DDECF0"), Teal); float fill = (float)Math.Clamp(value / 100, 0, 1) * h; Box(canvas, x + 3, y + h - fill, w - 6, fill, color); Text(canvas, o.Text, x + 12, y + 24, size: 14); break;
+                case HmiKind.Gauge:
+                    Box(canvas, x, y, w, h, SKColors.White, SKColor.Parse("#D7E2E7")); Text(canvas, o.Text, x + 20, y + 27, Teal, 12, true);
+                    Text(canvas, value.ToString("0") + " %", x + 22, y + h * .64f, size: 46, bold: true);
+                    Box(canvas, x + 20, y + h - 40, w - 40, 8, SKColor.Parse("#E1E9EE")); Box(canvas, x + 20, y + h - 40, (w - 40) * (float)Math.Clamp(value / 100, 0, 1), 8, color); break;
+            }
+            if (!runtime && o.Id == selection)
+            {
+                Color(SKColor.Parse("#308DCD"), true, 1 / scale); canvas.DrawRect(x - 2, y - 2, w + 4, h + 4, _paint);
+                foreach (float hx in new[] { x, x + w }) foreach (float hy in new[] { y, y + h }) Box(canvas, hx - 3, hy - 3, 6, 6, SKColors.White, SKColor.Parse("#308DCD"));
+            }
+        }
+        canvas.Restore(); return new(hits, height);
+    }
+    public void Trace(SKCanvas canvas, float width, float height, IReadOnlyList<ScanSnapshot> samples, IReadOnlyList<PlcTag> tags, string channel = "Speed_Actual")
+    {
+        canvas.Clear(SKColors.White); int slot = tags.ToList().FindIndex(t => t.Name.Equals(channel, StringComparison.OrdinalIgnoreCase));
+        if (slot < 0) slot = tags.ToList().FindIndex(t => t.Type != PlcType.Bool);
+        if (slot < 0 && tags.Count > 0) slot = 0;
+        if (slot < 0) { Text(canvas, "This project has no tags to trace.", 30, 45, Teal, 14); return; }
+        channel = tags[slot].Name;
+        float x0 = 62, y0 = 38, w = Math.Max(40, width - 100), h = Math.Max(40, height - 90);
+        int start = Math.Max(0, samples.Count - 300); var visible = samples.Skip(start).ToList();
+        double maximum = Math.Max(100, visible.Count == 0 ? 0 : visible.Max(s => s.Values[slot]));
+        double minimum = Math.Min(0, visible.Count == 0 ? 0 : visible.Min(s => s.Values[slot])), range = maximum - minimum;
+        Text(canvas, channel + "  /  virtual scan time", x0, 22, Teal, 13, true);
+        for (int i = 0; i <= 5; i++) { float y = y0 + i * h / 5; Line(canvas, x0, y, x0 + w, y, SKColor.Parse("#DFE6EC")); Text(canvas, (maximum - range * i / 5).ToString("0.#"), 20, y + 4, size: 11); }
+        if (visible.Count < 2) { Text(canvas, "Start simulation to acquire trace samples.", x0 + 18, y0 + 30, size: 13); return; }
+        using var path = new SKPath();
+        for (int i = 0; i < visible.Count; i++) { float x = x0 + i * w / (visible.Count - 1), y = y0 + h * (1 - (float)((visible[i].Values[slot] - minimum) / range)); if (i == 0) path.MoveTo(x, y); else path.LineTo(x, y); }
+        Color(Teal, true, 2); canvas.DrawPath(path, _paint);
+        Text(canvas, (visible[0].VirtualMilliseconds / 1000).ToString("0.0") + " s", x0, y0 + h + 24, size: 11);
+        Text(canvas, (visible[^1].VirtualMilliseconds / 1000).ToString("0.0") + " s", x0 + w - 35, y0 + h + 24, size: 11);
+    }
+    public void Dispose() { _font.Dispose(); _bold.Dispose(); _paint.Dispose(); _face.Dispose(); _boldFace.Dispose(); }
+}

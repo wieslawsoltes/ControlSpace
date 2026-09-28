@@ -1,0 +1,139 @@
+{
+  "environment": "offline set_content + in-memory Storage double",
+  "renderer": "Canvas 2D fallback",
+  "unoTested": false,
+  "physicalGpuTested": false,
+  "passed": 32,
+  "failed": 0,
+  "results": [
+    {
+      "test": "boot, prototype label, horizontal menu layout and hit regions",
+      "passed": true
+    },
+    {
+      "test": "menus open and dismiss without overlapping the workspace",
+      "passed": true
+    },
+    {
+      "test": "project tree search",
+      "passed": true
+    },
+    {
+      "test": "compile from toolbar produces real diagnostics",
+      "passed": true
+    },
+    {
+      "test": "run, simulated input toggle and ladder seal-in",
+      "passed": true
+    },
+    {
+      "test": "two-second timer and SCL speed block",
+      "passed": true
+    },
+    {
+      "test": "virtual product counter increments on rising edge",
+      "passed": true
+    },
+    {
+      "test": "watch table displays live runtime values",
+      "passed": true
+    },
+    {
+      "test": "Stop clears simulated output image",
+      "passed": true
+    },
+    {
+      "test": "SCL source editing commits model changes",
+      "passed": true
+    },
+    {
+      "test": "source edit undo and redo",
+      "passed": true
+    },
+    {
+      "test": "invalid source blocks simulation and is recoverable with Undo",
+      "passed": true
+    },
+    {
+      "test": "tag property editor applies typed initial value",
+      "passed": true
+    },
+    {
+      "test": "overlapping tag memory edit is rejected atomically",
+      "passed": true
+    },
+    {
+      "test": "atomic symbol rename propagates to LAD, SCL and HMI",
+      "passed": true
+    },
+    {
+      "test": "add and edit ladder network with undo",
+      "passed": true
+    },
+    {
+      "test": "keyboard-accessible instruction selection mirrors canvas",
+      "passed": true
+    },
+    {
+      "test": "add device, subnet link and I/O module",
+      "passed": true
+    },
+    {
+      "test": "invalid device IP rejected",
+      "passed": true
+    },
+    {
+      "test": "HMI object drag snaps and creates an undoable transaction",
+      "passed": true
+    },
+    {
+      "test": "insert and configure tag-bound HMI object",
+      "passed": true
+    },
+    {
+      "test": "HMI runtime buttons drive and release momentary virtual inputs",
+      "passed": true
+    },
+    {
+      "test": "trace view renders acquired virtual samples",
+      "passed": true
+    },
+    {
+      "test": "Escape stops simulation",
+      "passed": true
+    },
+    {
+      "test": "workspace splitters resize panels",
+      "passed": true
+    },
+    {
+      "test": "project export downloads validated JSON",
+      "passed": true
+    },
+    {
+      "test": "malformed project import does not replace current document",
+      "passed": true
+    },
+    {
+      "test": "recovery round trip through explicit Storage test double",
+      "passed": true
+    },
+    {
+      "test": "workspace remains usable when Storage access is denied",
+      "passed": true
+    },
+    {
+      "test": "compact desktop layout remains usable at 1024 \u00d7 768",
+      "passed": true
+    },
+    {
+      "test": "About discloses runtime and compatibility boundaries",
+      "passed": true
+    },
+    {
+      "test": "no uncaught browser exceptions across workflows",
+      "passed": true
+    }
+  ],
+  "browserErrors": []
+}

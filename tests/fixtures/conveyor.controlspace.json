@@ -1,0 +1,385 @@
+{
+  "format": "controlspace.project",
+  "version": 1,
+  "id": "conveyor-demo",
+  "name": "Conveyor_Line",
+  "revision": 0,
+  "tags": [
+    {
+      "name": "Start_PB",
+      "type": "Bool",
+      "address": "%I0.0",
+      "initialValue": 0,
+      "comment": "Start conveyor",
+      "retain": false
+    },
+    {
+      "name": "Stop_PB",
+      "type": "Bool",
+      "address": "%I0.1",
+      "initialValue": 0,
+      "comment": "Stop conveyor (simulation only)",
+      "retain": false
+    },
+    {
+      "name": "Part_Sensor",
+      "type": "Bool",
+      "address": "%I0.2",
+      "initialValue": 0,
+      "comment": "Product detection",
+      "retain": false
+    },
+    {
+      "name": "Reset_Count",
+      "type": "Bool",
+      "address": "%I0.3",
+      "initialValue": 0,
+      "comment": "Reset production counter",
+      "retain": false
+    },
+    {
+      "name": "Motor_Run",
+      "type": "Bool",
+      "address": "%Q0.0",
+      "initialValue": 0,
+      "comment": "Conveyor motor enable",
+      "retain": false
+    },
+    {
+      "name": "Ready_Lamp",
+      "type": "Bool",
+      "address": "%Q0.1",
+      "initialValue": 0,
+      "comment": "Run-up complete",
+      "retain": false
+    },
+    {
+      "name": "Run_Delay",
+      "type": "Bool",
+      "address": "%M0.0",
+      "initialValue": 0,
+      "comment": "TON output",
+      "retain": false
+    },
+    {
+      "name": "Delay_ET",
+      "type": "Time",
+      "address": "%MD4",
+      "initialValue": 0,
+      "comment": "Elapsed run-up time",
+      "retain": false
+    },
+    {
+      "name": "Part_Count",
+      "type": "DInt",
+      "address": "%MD8",
+      "initialValue": 0,
+      "comment": "Rising-edge product count",
+      "retain": true
+    },
+    {
+      "name": "Speed_Setpoint",
+      "type": "Real",
+      "address": "%MD12",
+      "initialValue": 65,
+      "comment": "Conveyor setpoint (%)",
+      "retain": true
+    },
+    {
+      "name": "Speed_Actual",
+      "type": "Real",
+      "address": "%MD16",
+      "initialValue": 0,
+      "comment": "Simulated conveyor speed (%)",
+      "retain": false
+    }
+  ],
+  "blocks": [
+    {
+      "id": "main",
+      "name": "Main",
+      "number": 1,
+      "language": "LAD",
+      "cyclic": true,
+      "source": "",
+      "networks": [
+        {
+          "id": "net-start",
+          "title": "Conveyor start / stop",
+          "comment": "Seal-in circuit • Start_PB or Motor_Run, inhibited by Stop_PB.",
+          "branches": [
+            [
+              {
+                "id": "start",
+                "kind": "Contact",
+                "tag": "Start_PB",
+                "parameter": 0,
+                "auxiliary": ""
+              },
+              {
+                "id": "stop",
+                "kind": "NegatedContact",
+                "tag": "Stop_PB",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ],
+            [
+              {
+                "id": "hold",
+                "kind": "Contact",
+                "tag": "Motor_Run",
+                "parameter": 0,
+                "auxiliary": ""
+              },
+              {
+                "id": "stop-hold",
+                "kind": "NegatedContact",
+                "tag": "Stop_PB",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ]
+          ],
+          "output": {
+            "id": "coil",
+            "kind": "Coil",
+            "tag": "Motor_Run",
+            "parameter": 0,
+            "auxiliary": ""
+          }
+        },
+        {
+          "id": "net-delay",
+          "title": "Run-up delay",
+          "comment": "Signal ready after the motor has been running for two seconds.",
+          "branches": [
+            [
+              {
+                "id": "run-contact",
+                "kind": "Contact",
+                "tag": "Motor_Run",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ]
+          ],
+          "output": {
+            "id": "ton",
+            "kind": "TimerOn",
+            "tag": "Run_Delay",
+            "parameter": 2000,
+            "auxiliary": "Delay_ET"
+          }
+        },
+        {
+          "id": "net-ready",
+          "title": "Ready indication",
+          "comment": "Enable the ready indicator after the run-up time.",
+          "branches": [
+            [
+              {
+                "id": "ready-contact",
+                "kind": "Contact",
+                "tag": "Run_Delay",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ]
+          ],
+          "output": {
+            "id": "ready-coil",
+            "kind": "Coil",
+            "tag": "Ready_Lamp",
+            "parameter": 0,
+            "auxiliary": ""
+          }
+        },
+        {
+          "id": "net-count",
+          "title": "Production counter",
+          "comment": "Count rising edges at the product sensor; Reset_Count resets the count.",
+          "branches": [
+            [
+              {
+                "id": "part-contact",
+                "kind": "Contact",
+                "tag": "Part_Sensor",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ]
+          ],
+          "output": {
+            "id": "ctu",
+            "kind": "CountUp",
+            "tag": "Part_Count",
+            "parameter": 0,
+            "auxiliary": "Reset_Count"
+          }
+        }
+      ]
+    },
+    {
+      "id": "speed",
+      "name": "Speed_Control",
+      "number": 2,
+      "language": "SCL",
+      "cyclic": true,
+      "networks": [],
+      "source": "// Cyclic speed control — simulation only\nIF \"Motor_Run\" THEN\n    \"Speed_Actual\" := \"Speed_Setpoint\";\nELSE\n    \"Speed_Actual\" := 0;\nEND_IF;\n"
+    }
+  ],
+  "devices": [
+    {
+      "id": "plc",
+      "name": "PLC_1",
+      "kind": "Controller",
+      "model": "Generic CPU 1500 · simulation",
+      "ipAddress": "192.168.0.1",
+      "x": 50,
+      "y": 100,
+      "modules": [
+        "CPU",
+        "DI 16×24 V",
+        "DQ 16×24 V"
+      ]
+    },
+    {
+      "id": "hmi",
+      "name": "HMI_1",
+      "kind": "Hmi",
+      "model": "Comfort panel · simulation",
+      "ipAddress": "192.168.0.2",
+      "x": 385,
+      "y": 100,
+      "modules": []
+    },
+    {
+      "id": "io",
+      "name": "IO_Station",
+      "kind": "RemoteIo",
+      "model": "Remote I/O · simulation",
+      "ipAddress": "192.168.0.3",
+      "x": 710,
+      "y": 100,
+      "modules": [
+        "IM",
+        "DI 8",
+        "DQ 8"
+      ]
+    }
+  ],
+  "links": [
+    {
+      "id": "link1",
+      "from": "plc",
+      "to": "hmi",
+      "subnet": "PN/IE_1"
+    },
+    {
+      "id": "link2",
+      "from": "hmi",
+      "to": "io",
+      "subnet": "PN/IE_1"
+    }
+  ],
+  "screens": [
+    {
+      "id": "overview",
+      "name": "Overview",
+      "width": 960,
+      "height": 540,
+      "objects": [
+        {
+          "id": "title",
+          "kind": "Label",
+          "text": "CONVEYOR LINE / 01",
+          "tag": "",
+          "x": 32,
+          "y": 24,
+          "width": 650,
+          "height": 48,
+          "color": "#008C95"
+        },
+        {
+          "id": "subtitle",
+          "kind": "Label",
+          "text": "Production overview",
+          "tag": "",
+          "x": 32,
+          "y": 82,
+          "width": 450,
+          "height": 30,
+          "color": "#667C8C"
+        },
+        {
+          "id": "motor-lamp",
+          "kind": "Lamp",
+          "text": "MOTOR RUNNING",
+          "tag": "Motor_Run",
+          "x": 40,
+          "y": 160,
+          "width": 190,
+          "height": 88,
+          "color": "#008C95"
+        },
+        {
+          "id": "ready-lamp",
+          "kind": "Lamp",
+          "text": "SYSTEM READY",
+          "tag": "Ready_Lamp",
+          "x": 270,
+          "y": 160,
+          "width": 190,
+          "height": 88,
+          "color": "#008C95"
+        },
+        {
+          "id": "speed-display",
+          "kind": "Gauge",
+          "text": "CONVEYOR SPEED",
+          "tag": "Speed_Actual",
+          "x": 540,
+          "y": 145,
+          "width": 330,
+          "height": 185,
+          "color": "#008C95"
+        },
+        {
+          "id": "count-display",
+          "kind": "Numeric",
+          "text": "PARTS PRODUCED",
+          "tag": "Part_Count",
+          "x": 42,
+          "y": 290,
+          "width": 370,
+          "height": 100,
+          "color": "#008C95"
+        },
+        {
+          "id": "start-button",
+          "kind": "Button",
+          "text": "START",
+          "tag": "Start_PB",
+          "x": 42,
+          "y": 438,
+          "width": 180,
+          "height": 58,
+          "color": "#008C95"
+        },
+        {
+          "id": "stop-button",
+          "kind": "Button",
+          "text": "STOP",
+          "tag": "Stop_PB",
+          "x": 250,
+          "y": 438,
+          "width": 180,
+          "height": 58,
+          "color": "#B65045"
+        }
+      ]
+    }
+  ]
+}

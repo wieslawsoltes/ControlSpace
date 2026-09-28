@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="src/ControlSpace.Core/ControlSpace.Core.csproj" />
+  <Project Path="src/ControlSpace.Languages/ControlSpace.Languages.csproj" />
+  <Project Path="src/ControlSpace.Simulation/ControlSpace.Simulation.csproj" />
+  <Project Path="src/ControlSpace.Storage/ControlSpace.Storage.csproj" />
+  <Project Path="src/ControlSpace.Engineering/ControlSpace.Engineering.csproj" />
+  <Project Path="src/ControlSpace.Rendering.Skia/ControlSpace.Rendering.Skia.csproj" />
+  <Project Path="src/ControlSpace.Controls.Uno/ControlSpace.Controls.Uno.csproj" />
+  <Project Path="src/ControlSpace.Workbench.Uno/ControlSpace.Workbench.Uno.csproj" />
+  <Project Path="src/ControlSpace.App/ControlSpace.App.csproj" />
+  <Project Path="tests/ControlSpace.Tests/ControlSpace.Tests.csproj" />
+</Solution>

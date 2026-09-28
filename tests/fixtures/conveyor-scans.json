@@ -1,0 +1,254 @@
+[
+  {
+    "inputs": {
+      "Start_PB": 1
+    },
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 100,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {
+      "Start_PB": 0
+    },
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 200,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 300,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 400,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 500,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 600,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 700,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 800,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 900,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1000,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1100,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1200,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1300,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1400,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1500,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1600,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1700,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1800,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 1900,
+      "Ready_Lamp": 0
+    }
+  },
+  {
+    "inputs": {},
+    "period": 100,
+    "expected": {
+      "Motor_Run": 1,
+      "Speed_Actual": 65,
+      "Delay_ET": 2000,
+      "Ready_Lamp": 1
+    }
+  },
+  {
+    "inputs": {
+      "Part_Sensor": 1
+    },
+    "period": 100,
+    "expected": {
+      "Part_Count": 1
+    }
+  },
+  {
+    "inputs": {
+      "Part_Sensor": 1
+    },
+    "period": 100,
+    "expected": {
+      "Part_Count": 1
+    }
+  },
+  {
+    "inputs": {
+      "Part_Sensor": 0
+    },
+    "period": 100,
+    "expected": {
+      "Part_Count": 1
+    }
+  },
+  {
+    "inputs": {
+      "Part_Sensor": 1
+    },
+    "period": 100,
+    "expected": {
+      "Part_Count": 2
+    }
+  },
+  {
+    "inputs": {
+      "Stop_PB": 1
+    },
+    "period": 100,
+    "expected": {
+      "Motor_Run": 0,
+      "Speed_Actual": 0,
+      "Delay_ET": 0,
+      "Ready_Lamp": 0
+    }
+  }
+]

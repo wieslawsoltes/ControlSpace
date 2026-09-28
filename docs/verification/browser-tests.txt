@@ -1,0 +1,40 @@
+PASS boot, prototype label, horizontal menu layout and hit regions
+PASS menus open and dismiss without overlapping the workspace
+PASS project tree search
+PASS compile from toolbar produces real diagnostics
+PASS run, simulated input toggle and ladder seal-in
+PASS two-second timer and SCL speed block
+PASS virtual product counter increments on rising edge
+PASS watch table displays live runtime values
+PASS Stop clears simulated output image
+PASS SCL source editing commits model changes
+PASS source edit undo and redo
+PASS invalid source blocks simulation and is recoverable with Undo
+PASS tag property editor applies typed initial value
+PASS overlapping tag memory edit is rejected atomically
+PASS atomic symbol rename propagates to LAD, SCL and HMI
+PASS add and edit ladder network with undo
+PASS keyboard-accessible instruction selection mirrors canvas
+PASS add device, subnet link and I/O module
+PASS invalid device IP rejected
+PASS HMI object drag snaps and creates an undoable transaction
+PASS insert and configure tag-bound HMI object
+PASS HMI runtime buttons drive and release momentary virtual inputs
+PASS trace view renders acquired virtual samples
+PASS Escape stops simulation
+PASS workspace splitters resize panels
+PASS project export downloads validated JSON
+PASS malformed project import does not replace current document
+PASS recovery round trip through explicit Storage test double
+PASS workspace remains usable when Storage access is denied
+PASS compact desktop layout remains usable at 1024 × 768
+PASS About discloses runtime and compatibility boundaries
+PASS no uncaught browser exceptions across workflows
+{
+  "environment": "offline set_content + in-memory Storage double",
+  "renderer": "Canvas 2D fallback",
+  "unoTested": false,
+  "physicalGpuTested": false,
+  "passed": 32,
+  "failed": 0
+}

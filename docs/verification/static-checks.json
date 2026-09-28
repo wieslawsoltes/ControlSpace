@@ -1,0 +1,32 @@
+{
+  "scope": "Structural validation only. Does not compile C#, execute WebGPU, or run GitHub Actions.",
+  "passed": 5,
+  "failed": 0,
+  "checks": [
+    {
+      "check": "Project structure and XML",
+      "passed": true,
+      "detail": "10 project XML files, project references, solution, build props and App.xaml parse successfully; no compilation performed."
+    },
+    {
+      "check": "JavaScript syntax",
+      "passed": true,
+      "detail": "7 JavaScript modules parsed by Node.js."
+    },
+    {
+      "check": "Python syntax",
+      "passed": true,
+      "detail": "5 Python sources parsed."
+    },
+    {
+      "check": "Workflow YAML structure",
+      "passed": true,
+      "detail": "4 YAML files parsed. GitHub workflow/schema/runtime validation remains pending."
+    },
+    {
+      "check": "Fail-closed Uno Pages staging",
+      "passed": true,
+      "detail": "No Uno index.html found. The prototype will not be substituted."
+    }
+  ]
+}

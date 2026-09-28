@@ -1,0 +1,12 @@
+{
+  "name": "controlspace-interaction-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Separately labelled JavaScript interaction prototype for the ControlSpace Uno workbench.",
+  "scripts": {
+    "test": "node --test tests/prototype/*.test.mjs",
+    "build:prototype": "python3 tools/bundle-prototype.py",
+    "serve:prototype": "python3 -m http.server 8080 --directory prototype"
+  }
+}

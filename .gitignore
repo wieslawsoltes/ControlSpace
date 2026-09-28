@@ -2,7 +2,9 @@
 **/obj/
 artifacts/
 node_modules/
-.vs/
-.idea/
-*.user
 .DS_Store
+.vs/
+*.user
+__pycache__/
+playwright-report/
+test-results/
