@@ -15,6 +15,10 @@ async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         page = await browser.new_page(viewport={'width': 1600, 'height': 1000})
+        # Parse the .NET-owned JSON string without exposing any mutation endpoint.
+        await page.add_init_script("""Object.defineProperty(window, 'controlSpaceVerification', {
+            get() { return JSON.parse(window.controlSpaceVerificationJson || 'null'); }
+        });""")
         logs, errors, checks = [], [], []
         page.on('console', lambda message: logs.append({'type': message.type, 'text': message.text}))
         page.on('pageerror', lambda error: errors.append(str(error)))
@@ -95,7 +99,9 @@ async def main():
             if errors: raise AssertionError('\n'.join(errors))
         finally:
             await page.screenshot(path=str(args.output / 'uno-last-state.png'))
-            (args.output / 'logs.json').write_text(json.dumps({'checks': checks, 'console': logs, 'errors': errors, 'state': await state()}, indent=2) + '\n')
+            final_state = await state()
+            (args.output / 'logs.json').write_text(json.dumps({'checks': checks, 'console': logs, 'errors': errors, 'state': final_state}, indent=2) + '\n')
+            print('UI evidence:', json.dumps({'checks': checks, 'errors': errors, 'consoleTail': logs[-10:], 'state': final_state}), flush=True)
             print(f'Uno UI workflows: {len(checks)} passed', flush=True)
             await browser.close()
 asyncio.run(main())

@@ -18,7 +18,9 @@ public sealed partial class App : Application
         {
             _workbench = new WorkbenchView(new PlatformProjectFiles()); _window.Content = _workbench; await _workbench.InitializeAsync();
 #if __WASM__
-            if (Uno.Foundation.WebAssemblyRuntime.InvokeJS("new URLSearchParams(location.search).get('verify') === '1'") == "true") _workbench.StartVerificationProbe();
+            using var location = System.Runtime.InteropServices.JavaScript.JSHost.GlobalThis.GetPropertyAsJSObject("location");
+            if ((location?.GetPropertyAsString("search") ?? "").TrimStart('?').Split('&').Contains("verify=1"))
+                _workbench.StartVerificationProbe();
 #endif
             _window.Closed += (_, _) => _workbench.Dispose(); Console.WriteLine("[ControlSpace] Uno workspace ready");
         }
