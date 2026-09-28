@@ -1,4 +1,4 @@
-name: Build, test and deploy
+name: Build and test
 on:
   push:
     branches: [main]
@@ -10,30 +10,66 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  core:
+  portable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: C# compiler and scan conformance
+        run: dotnet run --project tests/ControlSpace.Tests -c Release -- --fixtures tests/fixtures
+      - name: JavaScript prototype engine regression tests
+        run: npm test
+      - name: Package reusable platform-neutral libraries
+        run: |
+          for library in Core Languages Simulation Storage Engineering Rendering.Skia; do
+            dotnet pack "src/ControlSpace.$library" -c Release -o artifacts/packages
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portable-packages
+          path: artifacts/packages/*.nupkg
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build Uno Skia desktop workspace
+        run: dotnet build src/ControlSpace.App -c Release -f net10.0-desktop -p:ControlSpaceTargetFrameworks=net10.0-desktop
+  prototype-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          persist-credentials: false
-      - uses: actions/setup-dotnet@v4
+          node-version: '22'
+      - uses: actions/setup-python@v5
         with:
-          dotnet-version: '10.0.x'
-      - name: Portable specifications
-        run: dotnet run --project tests/ControlSpace.Tests -c Release
+          python-version: '3.12'
+      - run: python -m pip install playwright==1.55.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Exercise the explicitly labelled JavaScript interaction prototype
+        run: |
+          python tools/bundle-prototype.py
+          python tests/browser/prototype_test.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: controlspace-source
-          include-hidden-files: true
+          name: prototype-browser-verification
           path: |
-            src/
-            tests/
-            .github/
-            global.json
-            Directory.Build.props
-            README.md
-            LICENSE
-            .gitignore
-            .editorconfig
+            artifacts/browser-report.json
+            artifacts/ControlSpace-prototype.html
+            docs/images/*.png

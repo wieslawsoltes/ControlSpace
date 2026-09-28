@@ -1,94 +1,104 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { createDemo, clone, parseProject, serializeProject, validateProject, tagsToCsv, tagsFromCsv, isValidValue, formatValue } from '../../prototype/engine/model.js';
-import { compileProject, parseScl, lexScl, renameSclTag } from '../../prototype/engine/languages.js';
-import { VirtualPlc, RingBuffer } from '../../prototype/engine/runtime.js';
-import { Workspace } from '../../prototype/engine/workspace.js';
-function compiled(p = createDemo()) { const result = compileProject(p); assert.equal(result.success, true, JSON.stringify(result.diagnostics)); return result.program; }
-function runtime(p) { return new VirtualPlc(compiled(p)); }
-function scl(source) { const p = createDemo(); p.blocks = [{ ...p.blocks[1], source }]; return p; }
-function output(kind, parameter = 0, tag = 'Motor_Run', auxiliary = '') { const p = createDemo(); p.blocks = [p.blocks[0]]; p.blocks[0].networks = [p.blocks[0].networks[0]]; const n = p.blocks[0].networks[0]; n.branches = [[n.branches[0][0]]]; n.output = { ...n.output, kind, parameter, tag, auxiliary }; return p; }
-test('demo passes schema and compile gates', () => { assert.deepEqual(validateProject(createDemo()), []); assert.equal(compiled().blocks.length, 2); });
-test('canonical JSON round trip', () => assert.deepEqual(parseProject(serializeProject(createDemo())), createDemo()));
-test('input model is isolated from compiled image', () => { const p = createDemo(), c = compiled(p); p.tags[0].name = 'Changed'; assert.equal(c.project.tags[0].name, 'Start_PB'); });
-for (const [name, modify] of [
-  ['unsupported format', p => p.format = 'tia'], ['future schema', p => p.version = 100], ['missing name', p => delete p.name], ['unknown field', p => p.unsafe = true], ['null tags', p => p.tags = null], ['negative revision', p => p.revision = -1], ['duplicate names', p => p.tags[1].name = 'start_pb'], ['bad identifier', p => p.tags[0].name = '<script>'], ['duplicate IDs', p => p.blocks[1].id = p.blocks[0].id], ['wrong address width', p => p.tags[0].address = '%MD0'], ['overlapping addresses', p => p.tags[8].address = '%MD4'], ['invalid bit address', p => p.tags[0].address = '%I0.8'], ['invalid initial value', p => p.tags[0].initialValue = 2], ['nonfinite initial value', p => p.tags[0].initialValue = Infinity], ['unknown tag type', p => p.tags[0].type = 'String'], ['missing tag property', p => delete p.tags[0].retain], ['null network', p => p.blocks[0].networks[0] = null], ['no paths', p => p.blocks[0].networks[0].branches = []], ['empty path', p => p.blocks[0].networks[0].branches = [[]]], ['null instruction', p => p.blocks[0].networks[0].output = null], ['invalid instruction kind', p => p.blocks[0].networks[0].output.kind = 'RemoteWrite'], ['duplicate device IP', p => p.devices[1].ipAddress = p.devices[0].ipAddress], ['bad IPv4', p => p.devices[0].ipAddress = '192.168.0.300'], ['missing link endpoint', p => p.links[0].to = 'missing'], ['self link', p => p.links[0].to = p.links[0].from], ['invalid HMI color', p => p.screens[0].objects[0].color = 'url(javascript:alert())'], ['negative HMI geometry', p => p.screens[0].objects[0].width = -1], ['HMI outside screen', p => p.screens[0].objects[0].x = 10000], ['HMI unknown tag', p => p.screens[0].objects[0].tag = 'missing'], ['oversized screen', p => p.screens[0].width = 100000], ['too many tags', p => p.tags = Array(10001).fill(p.tags[0])]
-]) test(`reject schema: ${name}`, () => { const p = createDemo(); modify(p); assert.ok(validateProject(p).length > 0); });
-test('case-insensitive address widths are accepted', () => { const p = createDemo(); p.tags[9].address = '%md12'; assert.deepEqual(validateProject(p), []); });
-test('duplicate JSON keys rejected before model materialization', () => assert.throws(() => parseProject(serializeProject(createDemo()).replace('"version": 1', '"version": 1, "version": 1')), /Duplicate/i));
-test('duplicate nested JSON keys rejected', () => assert.throws(() => parseProject(serializeProject(createDemo()).replace('"name": "Start_PB"', '"name": "Start_PB", "name": "Start_PB"')), /Duplicate/i));
-test('oversized JSON rejected', () => assert.throws(() => parseProject(' '.repeat(8 * 1024 * 1024 + 1)), /limit|large|exceed/i));
-test('malformed JSON rejected', () => assert.throws(() => parseProject('{"format":')));
-test('CSV handles commas, quotes and embedded newlines', () => { const tags = createDemo().tags; tags[0].comment = 'A, "quoted"\ncomment'; assert.deepEqual(tagsFromCsv(tagsToCsv(tags)), tags); });
-test('CSV wrong header rejected', () => assert.throws(() => tagsFromCsv('Name,Type\r\nA,Bool'), /header/i));
-test('CSV malformed quoting rejected', () => assert.throws(() => tagsFromCsv('"never closed'), /quote|column|header|field/i));
-for (const [type, good, bad] of [['Bool', 1, 2], ['Int', 32767, 32768], ['DInt', -2147483648, -2147483649], ['Time', 2147483647, -1], ['Real', 0.125, Infinity]]) test(`${type} value limits`, () => { assert.equal(isValidValue(type, good), true); assert.equal(isValidValue(type, bad), false); });
-test('Boolean and time formatting', () => { assert.equal(formatValue('Bool', 0), 'FALSE'); assert.equal(formatValue('Time', 123), 'T#123ms'); });
-for (const [name, source, tag, expected] of [
- ['precedence','Speed_Actual := 2 + 3 * 4;', 'Speed_Actual', 14], ['parentheses','Speed_Actual := (2 + 3) * 4;', 'Speed_Actual', 20], ['unary','Speed_Actual := -2 + +7;', 'Speed_Actual', 5], ['modulo','Part_Count := 17 MOD 5;', 'Part_Count', 2], ['exponent','Speed_Actual := 1.25e2 / 5;', 'Speed_Actual', 25], ['boolean','Motor_Run := TRUE AND NOT FALSE OR FALSE;', 'Motor_Run', 1], ['xor','Motor_Run := TRUE XOR TRUE;', 'Motor_Run', 0], ['comparison','Motor_Run := 2 <= 3;', 'Motor_Run', 1], ['if else','IF FALSE THEN Speed_Actual := 1; ELSE Speed_Actual := 2; END_IF;', 'Speed_Actual', 2], ['nested if','IF TRUE THEN IF FALSE THEN Speed_Actual := 4; ELSE Speed_Actual := 7; END_IF; END_IF;', 'Speed_Actual', 7], ['case insensitive','speed_actual := SPEED_SETPOINT;', 'Speed_Actual', 65], ['comments','// before\n(* middle *) Speed_Actual := 4; //after', 'Speed_Actual', 4], ['quoted tags','"Speed_Actual" := "Speed_Setpoint";', 'Speed_Actual', 65]
-]) test(`SCL executes ${name}`, () => { const r = runtime(scl(source)); r.step(100, true); assert.equal(r.state, 'STOP'); assert.equal(r.read(tag), expected); });
-for (const [name, source] of [
- ['input write','Start_PB := TRUE;'], ['unknown symbol','Unknown := 5;'], ['missing semicolon','Speed_Actual := 5'], ['mixed type','Motor_Run := 1;'], ['bad boolean','IF 1 THEN Motor_Run := TRUE; END_IF;'], ['numeric AND','Speed_Actual := 1 AND 2;'], ['unsupported loop','WHILE TRUE DO Motor_Run := TRUE; END_WHILE;'], ['unsupported call','Speed_Actual := sin(5);'], ['unclosed comment','(* incomplete'], ['unclosed quote','"Speed_Actual := 1;'], ['unmatched parens','Speed_Actual := (1 + 2;'], ['excessive depth', `Speed_Actual := ${'('.repeat(80)}1${')'.repeat(80)};`]
-]) test(`SCL rejects ${name}`, () => { const result = compileProject(scl(source)); assert.equal(result.success, false); assert.ok(result.diagnostics.some(d => d.severity === 'Error')); });
-test('SCL error has line and column', () => { const c = compileProject(scl('// comment\nUnknown := 5;')); assert.equal(c.diagnostics[0].line, 2); assert.ok(c.diagnostics[0].column >= 1); });
-test('SCL rename preserves comments and longer identifiers', () => { const source = '// Speed_Actual "Speed_Actual"\n(* Speed_Actual *) "Speed_Actual" := Speed_Actual + Speed_ActualExtra;'; assert.equal(renameSclTag(source, 'Speed_Actual', 'Speed'), '// Speed_Actual "Speed_Actual"\n(* Speed_Actual *) "Speed" := Speed + Speed_ActualExtra;'); });
-test('SCL script injection is rejected, never evaluated', () => assert.equal(compileProject(scl('globalThis.pwned = true;')).success, false));
-test('noncyclic blocks validate but do not execute', () => { const p = scl('Speed_Actual := 42;'); p.blocks[0].cyclic = false; const r = runtime(p); r.step(100, true); assert.equal(r.read('Speed_Actual'), 0); });
-test('LAD seal-in, TON, SCL and stop inhibit', () => { const r = runtime(); r.run(); r.setInput('Start_PB', 1); r.step(); assert.equal(r.read('Motor_Run'), 1); r.setInput('Start_PB', 0); for (let i = 1; i < 20; i++) r.step(); assert.equal(r.read('Motor_Run'), 1); assert.equal(r.read('Ready_Lamp'), 1); assert.equal(r.read('Delay_ET'), 2000); assert.equal(r.read('Speed_Actual'), 65); r.setInput('Stop_PB', 1); r.step(); assert.equal(r.read('Motor_Run'), 0); assert.equal(r.read('Delay_ET'), 0); assert.equal(r.read('Speed_Actual'), 0); });
-test('CountUp counts only edges and reset has priority', () => { const r = runtime(); r.run(); r.setInput('Part_Sensor', 1); r.step(); r.step(); assert.equal(r.read('Part_Count'), 1); r.setInput('Part_Sensor', 0); r.step(); r.setInput('Part_Sensor', 1); r.step(); assert.equal(r.read('Part_Count'), 2); r.setInput('Reset_Count', 1); r.step(); assert.equal(r.read('Part_Count'), 0); });
-test('TON exact preset and reset', () => { const r = runtime(output('TimerOn', 200, 'Motor_Run', 'Delay_ET')); r.setInput('Start_PB', 1); r.step(100, true); assert.equal(r.read('Motor_Run'), 0); r.step(100, true); assert.equal(r.read('Motor_Run'), 1); r.setInput('Start_PB', 0); r.step(100, true); assert.equal(r.read('Delay_ET'), 0); });
-test('TOF holds output for two inactive scans', () => { const r = runtime(output('TimerOff', 200)); r.setInput('Start_PB', 1); r.step(100, true); assert.equal(r.read('Motor_Run'), 1); r.setInput('Start_PB', 0); r.step(100, true); assert.equal(r.read('Motor_Run'), 1); r.step(100, true); assert.equal(r.read('Motor_Run'), 0); });
-test('TP cannot retrigger while input remains high', () => { const r = runtime(output('Pulse', 200)); r.setInput('Start_PB', 1); for (const expected of [1, 1, 0, 0]) { r.step(100, true); assert.equal(r.read('Motor_Run'), expected); } });
-for (const [kind, expected] of [['Coil', 0], ['SetCoil', 1], ['ResetCoil', 0]]) test(`LAD ${kind} semantics`, () => { const r = runtime(output(kind)); r.setInput('Start_PB', 1); r.step(100, true); r.setInput('Start_PB', 0); r.step(100, true); assert.equal(r.read('Motor_Run'), expected); });
-test('MOVE transfers a representable constant', () => { const r = runtime(output('Move', 123, 'Part_Count')); r.setInput('Start_PB', 1); r.step(100, true); assert.equal(r.read('Part_Count'), 123); });
-for (const [kind, value, expected] of [['Greater', 65, 1], ['Less', 65, 0], ['Equal', 50, 1]]) test(`LAD ${kind} comparison`, () => { const p = output('Coil'); p.blocks[0].networks[0].branches[0][0] = { id: 'cmp', kind, tag: 'Speed_Setpoint', parameter: 50, auxiliary: '' }; p.tags.find(t => t.name === 'Speed_Setpoint').initialValue = value; const r = runtime(p); r.step(100, true); assert.equal(r.read('Motor_Run'), expected); });
-test('rising edge remains one scan', () => { const p = output('Coil'); p.blocks[0].networks[0].branches[0][0].kind = 'RisingEdge'; const r = runtime(p); r.setInput('Start_PB', 1); r.step(100, true); assert.equal(r.read('Motor_Run'), 1); r.step(100, true); assert.equal(r.read('Motor_Run'), 0); });
-test('falling edge detects high-to-low only', () => { const p = output('Coil'); p.blocks[0].networks[0].branches[0][0].kind = 'FallingEdge'; const r = runtime(p); r.step(100, true); assert.equal(r.read('Motor_Run'), 0); r.setInput('Start_PB', 1); r.step(100, true); r.setInput('Start_PB', 0); r.step(100, true); assert.equal(r.read('Motor_Run'), 1); });
-for (const [name, modify] of [['unknown operand', p => p.blocks[0].networks[0].output.tag = 'Missing'], ['input output', p => p.blocks[0].networks[0].output.tag = 'Start_PB'], ['numeric coil', p => p.blocks[0].networks[0].output.tag = 'Part_Count'], ['invalid timer preset', p => p.blocks[0].networks[1].output.parameter = -1], ['timer elapsed type', p => p.blocks[0].networks[1].output.auxiliary = 'Ready_Lamp'], ['counter reset type', p => p.blocks[0].networks[3].output.auxiliary = 'Part_Count']]) test(`compiler rejects ${name}`, () => { const p = createDemo(); modify(p); assert.equal(compileProject(p).success, false); });
-test('ordinary stopped controller does not scan', () => { const r = runtime(); assert.equal(r.step(), false); assert.equal(r.cycle, 0); });
-test('scan periods are bounded integer milliseconds', () => { const r = runtime(); for (const n of [0, -1, 1001, 1.5, NaN]) assert.throws(() => r.step(n, true), /period/i); });
-test('input writes reject memory tags and invalid Boolean values', () => { const r = runtime(); assert.throws(() => r.setInput('Part_Count', 5)); assert.throws(() => r.setInput('Start_PB', 2)); });
-test('force applied before and after scan, release and stop clear forces', () => { const r = runtime(); r.force('Motor_Run', 1); r.step(100, true); assert.equal(r.read('Motor_Run'), 1); r.release('Motor_Run'); assert.equal(r.forces.size, 0); r.force('Ready_Lamp', 1); r.stop(); assert.equal(r.forces.size, 0); assert.equal(r.read('Motor_Run'), 0); });
-test('fault rolls back prior writes and clears outputs', () => { const r = runtime(scl('Part_Count := 9; Motor_Run := TRUE; Speed_Actual := 1 / 0;')); r.run(); assert.equal(r.step(), false); assert.equal(r.state, 'FAULT'); assert.equal(r.read('Part_Count'), 0); assert.equal(r.read('Motor_Run'), 0); assert.equal(r.cycle, 0); assert.equal(r.trace.count, 0); });
-test('fault restart requires explicit reset even after Stop', () => { const r = runtime(scl('Speed_Actual := 1 / 0;')); r.run(); r.step(); r.stop(); assert.throws(() => r.run(), /Reset/i); r.reset(); assert.equal(r.state, 'STOP'); assert.equal(r.fault, null); });
-test('integer assignment overflow faults deterministically', () => { const r = runtime(scl('Part_Count := 2147483648;')); r.step(100, true); assert.equal(r.state, 'FAULT'); });
-test('warm reset retains only retained memory tags', () => { const r = runtime(); r.force('Part_Count', 17); r.force('Speed_Actual', 77); r.step(100, true); r.reset(true); assert.equal(r.read('Part_Count'), 17); assert.equal(r.read('Speed_Actual'), 0); r.reset(); assert.equal(r.read('Part_Count'), 0); });
-test('snapshot values are independent from live values', () => { const r = runtime(); const snap = r.snapshot(); snap.values[0] = 5; assert.equal(r.read('Start_PB'), 0); });
-test('bounded trace order and reset', () => { const buffer = new RingBuffer(3); [1, 2, 3, 4, 5].forEach(v => buffer.add(v)); assert.deepEqual(buffer.read(), [3, 4, 5]); buffer.clear(); assert.deepEqual(buffer.read(), []); assert.throws(() => new RingBuffer(0)); });
-test('2048-sample trace remains bounded', () => { const r = runtime(); for (let i = 0; i < 2100; i++) r.step(1, true); assert.equal(r.trace.count, 2048); assert.equal(r.trace.read()[0].cycle, 53); });
-test('workspace edits are transactional with undo/redo', () => { const w = new Workspace(); w.edit('Name', p => p.name = 'New_Name'); assert.equal(w.dirty, true); w.undo(); assert.equal(w.project.name, 'Conveyor_Line'); w.redo(); assert.equal(w.project.name, 'New_Name'); w.markSaved(); assert.equal(w.dirty, false); });
-test('rejected edit changes neither model nor history', () => { const w = new Workspace(), before = serializeProject(w.project); assert.throws(() => w.edit('Bad name', p => p.tags[0].name = 'invalid name')); assert.equal(serializeProject(w.project), before); assert.equal(w.undoStack.length, 0); });
-test('history is bounded and redo is cleared by new edit', () => { const w = new Workspace(createDemo(), 2); for (let i = 0; i < 4; i++) w.edit('Rename', p => p.name = `Name_${i}`); assert.equal(w.undoStack.length, 2); w.undo(); w.edit('Another', p => p.name = 'Another'); assert.equal(w.redoStack.length, 0); });
-test('no-op edit does not create history', () => { const w = new Workspace(); assert.equal(w.edit('No-op', () => {}), false); assert.equal(w.undoStack.length, 0); });
-test('editing while running is rejected', () => { const w = new Workspace(); w.compile(); w.controller.run(); assert.throws(() => w.edit('Rename', p => p.name = 'new'), /Stop/i); });
-test('undo stops and invalidates the compiled runtime', () => { const w = new Workspace(); w.edit('Name', p => p.name = 'New'); w.compile(); const r = w.controller; r.run(); w.undo(); assert.equal(r.state, 'STOP'); assert.equal(w.controller, null); });
-test('rename propagates to LAD, SCL, HMI atomically', () => { const w = new Workspace(); w.renameTag('Motor_Run', 'Motor_Enable'); assert.equal(w.undoStack.length, 1); assert.ok(w.project.blocks[1].source.includes('Motor_Enable')); assert.equal(w.project.screens[0].objects.find(o => o.id === 'motor-lamp').tag, 'Motor_Enable'); assert.equal(w.compile().success, true); w.undo(); assert.equal(w.project.tags[4].name, 'Motor_Run'); });
-test('rename with invalid property update rolls back everything', () => { const w = new Workspace(); assert.throws(() => w.renameTag('Motor_Run', 'Motor_Enable', tag => tag.address = 'bad')); assert.equal(w.project.tags[4].name, 'Motor_Run'); assert.equal(w.undoStack.length, 0); });
-test('load invalid project preserves current workspace', () => { const w = new Workspace(), p = createDemo(); p.version = 999; assert.throws(() => w.load(p)); assert.equal(w.project.version, 1); });
-test('LAD references include counter reset and timer elapsed access', () => { const refs = new Workspace().crossReferences(); assert.equal(refs.find(r => r.tag === 'Reset_Count').access, 'Read'); assert.equal(refs.find(r => r.tag === 'Delay_ET').access, 'Write'); });
-test('shared cross-language conveyor fixture', async () => { const fs = await import('node:fs/promises'); const project = parseProject(await fs.readFile(new URL('../fixtures/conveyor.controlspace.json', import.meta.url), 'utf8')); const steps = JSON.parse(await fs.readFile(new URL('../fixtures/conveyor-scans.json', import.meta.url), 'utf8')); const r = runtime(project); for (const step of steps) { for (const [name, value] of Object.entries(step.inputs)) r.setInput(name, value); assert.equal(r.step(step.period, true), true); for (const [name, value] of Object.entries(step.expected)) assert.equal(r.read(name), value, `${name} at scan ${r.cycle}`); } });
+using System.Text.Json;
+using ControlSpace.Core;
+using ControlSpace.Engineering;
+using ControlSpace.Languages;
+using ControlSpace.Simulation;
+using ControlSpace.Storage;
 
+// Dependency-free regression runner for the same C# libraries used by Uno.
+int passed = 0, failed = 0;
+void Test(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS {name}"); }
+    catch (Exception error) { failed++; Console.Error.WriteLine($"FAIL {name}: {error}"); }
+}
+static void Check(bool condition, string message = "Assertion failed")
+{
+    if (!condition) throw new InvalidOperationException(message);
+}
+static void Equal<T>(T expected, T actual) where T : notnull => Check(EqualityComparer<T>.Default.Equals(expected, actual), $"Expected {expected}; got {actual}.");
+static void Reject(Action action)
+{
+    try { action(); }
+    catch (Exception e) when (e is ArgumentException or InvalidOperationException or InvalidDataException or JsonException or SclException) { return; }
+    throw new InvalidOperationException("Expected operation to reject invalid input.");
+}
+static CompiledProgram Compile(ControlProject project)
+{
+    var result = ProjectCompiler.Compile(project);
+    Check(result.Success, string.Join("; ", result.Diagnostics.Select(d => d.Message)));
+    return result.Program!;
+}
+static ControlProject Scl(string source)
+{
+    var p = DemoProject.Create();
+    return p with { Blocks = [p.Blocks[1] with { Source = source }] };
+}
+static VirtualPlc Runtime(ControlProject? project = null) => new(Compile(project ?? DemoProject.Create()));
+static bool Scan(VirtualPlc controller) => controller.Step(TimeSpan.FromMilliseconds(100), singleStep: true);
 
-test('rename quoted keyword identifiers preserves SCL control-flow keywords', () => {
-  assert.equal(renameSclTag('IF "IF" THEN "IF" := FALSE; END_IF; // IF', 'IF', 'Flag'), 'IF "Flag" THEN "Flag" := FALSE; END_IF; // IF');
-  assert.equal(renameSclTag('Flag := TRUE;', 'Flag', 'IF'), '"IF" := TRUE;');
+Test("Demo schema and compilation", () => { var p = DemoProject.Create(); Check(!ProjectValidator.Validate(p).Any(d => d.Severity == Severity.Error)); Equal(2, Compile(p).Blocks.Count); });
+Test("Project JSON round trip", () => { var json = ProjectStorage.Serialize(DemoProject.Create()); Equal(json, ProjectStorage.Serialize(ProjectStorage.Deserialize(json))); });
+Test("Compiler snapshot isolation", () => { var p = DemoProject.Create(); var c = Compile(p); p.Tags[0] = p.Tags[0] with { Name = "Changed" }; Equal("Start_PB", c.Project.Tags[0].Name); });
+Test("Duplicate JSON properties rejected", () => Reject(() => ProjectStorage.Deserialize(ProjectStorage.Serialize(DemoProject.Create()).Replace("\"version\": 1", "\"version\": 1, \"version\": 1"))));
+Test("Unknown JSON properties rejected", () => Reject(() => ProjectStorage.Deserialize(ProjectStorage.Serialize(DemoProject.Create()).Insert(1, "\"unknown\": true,"))));
+Test("Unsupported project version rejected", () => Reject(() => ProjectStorage.Deserialize(ProjectStorage.Serialize(DemoProject.Create() with { Version = 999 }))));
+Test("Tag CSV round trip with quotes and newlines", () => { var p = DemoProject.Create(); p.Tags[0] = p.Tags[0] with { Comment = "A, \"quoted\"\ncomment" }; Check(p.Tags.SequenceEqual(ProjectStorage.ImportTagsCsv(ProjectStorage.ExportTagsCsv(p.Tags)))); });
+Test("CSV invalid header rejected", () => Reject(() => ProjectStorage.ImportTagsCsv("Name,Type\nA,Bool")));
+Test("CSV unterminated quote rejected", () => Reject(() => ProjectStorage.ImportTagsCsv("\"unterminated")));
+foreach (var (type, good, bad) in new[] { (PlcType.Bool, 1d, 2d), (PlcType.Int, 32767d, 32768d), (PlcType.DInt, -2147483648d, -2147483649d), (PlcType.Time, 2147483647d, -1d), (PlcType.Real, .125d, double.PositiveInfinity) })
+    Test($"{type} numeric boundaries", () => { Check(PlcValues.IsValid(type, good)); Check(!PlcValues.IsValid(type, bad)); });
+foreach (var (name, source, symbol, expected) in new[]
+{
+    ("precedence", "Speed_Actual := 2 + 3 * 4;", "Speed_Actual", 14d),
+    ("parentheses", "Speed_Actual := (2 + 3) * 4;", "Speed_Actual", 20d),
+    ("unary", "Speed_Actual := -2 + +7;", "Speed_Actual", 5d),
+    ("modulo", "Part_Count := 17 MOD 5;", "Part_Count", 2d),
+    ("exponent", "Speed_Actual := 1.25e2 / 5;", "Speed_Actual", 25d),
+    ("boolean", "Motor_Run := TRUE AND NOT FALSE OR FALSE;", "Motor_Run", 1d),
+    ("xor", "Motor_Run := TRUE XOR TRUE;", "Motor_Run", 0d),
+    ("comparison", "Motor_Run := 2 <= 3;", "Motor_Run", 1d),
+    ("if else", "IF FALSE THEN Speed_Actual := 1; ELSE Speed_Actual := 2; END_IF;", "Speed_Actual", 2d),
+    ("nested if", "IF TRUE THEN IF FALSE THEN Speed_Actual := 4; ELSE Speed_Actual := 7; END_IF; END_IF;", "Speed_Actual", 7d),
+    ("case insensitive", "speed_actual := SPEED_SETPOINT;", "Speed_Actual", 65d),
+    ("comments", "// before\n(* middle *) Speed_Actual := 4; // after", "Speed_Actual", 4d),
+    ("quoted symbols", "\"Speed_Actual\" := \"Speed_Setpoint\";", "Speed_Actual", 65d)
+}) Test($"SCL executes {name}", () => { var r = Runtime(Scl(source)); Check(Scan(r), r.Fault ?? "Scan failed"); Equal(expected, r.Read(symbol)); });
+foreach (string source in new[] { "Start_PB := TRUE;", "Unknown := 5;", "Speed_Actual := 5", "Motor_Run := 1;", "IF 1 THEN Motor_Run := TRUE; END_IF;", "Speed_Actual := 1 AND 2;", "WHILE TRUE DO Motor_Run := TRUE; END_WHILE;", "Speed_Actual := sin(5);", "(* incomplete", "\"Speed_Actual := 1;", "Speed_Actual := (1 + 2;", "Speed_Actual := " + new string('(', 80) + "1" + new string(')', 80) + ";" })
+    Test($"SCL rejects {source[..Math.Min(source.Length, 48)]}", () => Check(!ProjectCompiler.Compile(Scl(source)).Success));
+Test("SCL diagnostic source position", () => { var d = ProjectCompiler.Compile(Scl("// comment\nUnknown := 5;")).Diagnostics.First(d => d.Severity == Severity.Error); Equal(2, d.Line); Check(d.Column >= 1); });
+Test("Symbol rename preserves comments and longer names", () => Equal("// Speed_Actual\n\"Speed\" := Speed + Speed_ActualExtra;", SclParser.RenameSymbol("// Speed_Actual\n\"Speed_Actual\" := Speed_Actual + Speed_ActualExtra;", "Speed_Actual", "Speed")));
+Test("Noncyclic block not executed", () => { var p = Scl("Speed_Actual := 42;"); p.Blocks[0] = p.Blocks[0] with { Cyclic = false }; var r = Runtime(p); Check(Scan(r)); Equal(0d, r.Read("Speed_Actual")); });
+Test("LAD seal-in, timer, SCL and stop input", () => { var r = Runtime(); r.SetInput("Start_PB", 1); Check(Scan(r)); r.SetInput("Start_PB", 0); for (int i = 1; i < 20; i++) Check(Scan(r)); Equal(1d, r.Read("Motor_Run")); Equal(1d, r.Read("Ready_Lamp")); Equal(2000d, r.Read("Delay_ET")); Equal(65d, r.Read("Speed_Actual")); r.SetInput("Stop_PB", 1); Check(Scan(r)); Equal(0d, r.Read("Motor_Run")); Equal(0d, r.Read("Speed_Actual")); });
+Test("Counter rising edges and reset priority", () => { var r = Runtime(); r.SetInput("Part_Sensor", 1); Check(Scan(r)); Check(Scan(r)); Equal(1d, r.Read("Part_Count")); r.SetInput("Part_Sensor", 0); Check(Scan(r)); r.SetInput("Part_Sensor", 1); Check(Scan(r)); Equal(2d, r.Read("Part_Count")); r.SetInput("Reset_Count", 1); Check(Scan(r)); Equal(0d, r.Read("Part_Count")); });
+Test("Force and release", () => { var r = Runtime(); r.Force("Speed_Setpoint", 35); Check(Scan(r)); Equal(35d, r.Read("Speed_Setpoint")); r.Release("Speed_Setpoint"); Equal(0, r.Forces.Count); });
+Test("STOP clears outputs and forces", () => { var r = Runtime(); r.Run(); r.SetInput("Start_PB", 1); Check(Scan(r)); r.Force("Motor_Run", 1); r.Stop(); Equal(0d, r.Read("Motor_Run")); Equal(0, r.Forces.Count); Equal(ControllerState.Stopped, r.State); Check(!r.Step(TimeSpan.FromMilliseconds(100))); });
+Test("Fault rolls back partial scan", () => { var r = Runtime(Scl("Speed_Setpoint := 50; Speed_Actual := 1 / 0;")); Check(!Scan(r)); Equal(ControllerState.Faulted, r.State); Equal(65d, r.Read("Speed_Setpoint")); Equal(0L, r.Cycle); Reject(r.Run); r.Reset(); Equal(ControllerState.Stopped, r.State); });
+Test("Invalid scan period rejected", () => { var r = Runtime(); Reject(() => r.Step(TimeSpan.Zero, true)); Reject(() => r.Step(TimeSpan.FromMilliseconds(1001), true)); });
+Test("Input writes restricted to input image", () => { var r = Runtime(); Reject(() => r.SetInput("Motor_Run", 1)); Reject(() => r.SetInput("Start_PB", 2)); });
+Test("Trace ring remains bounded and ordered", () => { var r = Runtime(); var trace = new TraceBuffer(2); for (int i = 0; i < 3; i++) { Check(Scan(r)); trace.Add(r.Snapshot()); } Equal(2, trace.Count); Equal(2L, trace.Read()[0].Cycle); Equal(3L, trace.Read()[1].Cycle); trace.Clear(); Equal(0, trace.Count); });
+Test("Workspace undo/redo and dirty state", () => { var w = new Workspace(DemoProject.Create()); Check(!w.IsDirty); w.RenameProject("Changed"); Check(w.IsDirty); w.Undo(); Equal("Conveyor_Line", w.Project.Name); Check(!w.IsDirty); w.Redo(); Equal("Changed", w.Project.Name); w.MarkSaved(); Check(!w.IsDirty); });
+Test("Editing invalidates compiled runtime", () => { var w = new Workspace(DemoProject.Create()); Check(w.Compile().Success); w.Edit("Comment", p => p.Tags[0] = p.Tags[0] with { Comment = "Edited" }); Check(w.Controller is null); Check(w.Compilation is null); });
+Test("Editing while RUN is rejected", () => { var w = new Workspace(DemoProject.Create()); Check(w.Compile().Success); w.Controller!.Run(); Reject(() => w.RenameProject("Blocked")); Equal("Conveyor_Line", w.Project.Name); });
+Test("Tag rename updates program and HMI references", () => { var w = new Workspace(DemoProject.Create()); w.RenameTag("Motor_Run", "Drive_Run"); Check(w.Compile().Success); Check(w.Project.Blocks[1].Source.Contains("Drive_Run")); Check(w.Project.Screens[0].Objects.Any(o => o.Tag == "Drive_Run")); Check(w.CrossReferences("Motor_Run").Count == 0); });
+Test("Atomic save and reopen", () => { string dir = Path.Combine(Path.GetTempPath(), "controlspace-test-" + Guid.NewGuid().ToString("N")); try { string file = Path.Combine(dir, "project.json"); var p = DemoProject.Create(); ProjectStorage.SaveAtomicAsync(file, p).GetAwaiter().GetResult(); Equal(ProjectStorage.Serialize(p), ProjectStorage.Serialize(ProjectStorage.Deserialize(File.ReadAllText(file)))); } finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); } });
+int fixtureArg = Array.IndexOf(args, "--fixtures");
+string fixtureDir = fixtureArg >= 0 && fixtureArg + 1 < args.Length ? args[fixtureArg + 1] : "tests/fixtures";
+Test("Shared JavaScript/C# conveyor scan fixture", () =>
+{
+    var p = ProjectStorage.Deserialize(File.ReadAllText(Path.Combine(fixtureDir, "conveyor.controlspace.json")));
+    var r = Runtime(p);
+    using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(fixtureDir, "conveyor-scans.json")));
+    r.Run();
+    int scans = 0;
+    foreach (var scan in document.RootElement.EnumerateArray())
+    {
+        foreach (var input in scan.GetProperty("inputs").EnumerateObject()) r.SetInput(input.Name, input.Value.GetDouble());
+        Check(r.Step(TimeSpan.FromMilliseconds(scan.GetProperty("period").GetDouble())), r.Fault ?? "Fixture scan failed");
+        foreach (var expected in scan.GetProperty("expected").EnumerateObject()) Equal(expected.Value.GetDouble(), r.Read(expected.Name));
+        scans++;
+    }
+    Check(scans > 0); Console.WriteLine($"  Verified {scans} shared scan vectors.");
 });
-test('empty HMI and non-demo trace scenes do not throw', async () => {
-  const { hmiScene, traceScene } = await import('../../prototype/ui/renderer.js');
-  const p = createDemo(); p.screens = [];
-  assert.ok(hmiScene(900, 700, undefined, p, null, '', false).labels.some(l => l.text.includes('no HMI')));
-  const w = new Workspace(); w.renameTag('Speed_Actual', 'Custom_Speed');
-  const r = runtime(w.project); r.step(100, true);
-  assert.ok(traceScene(900, 700, r).labels.some(l => l.text === 'Delay_ET'));
-  const empty = createDemo(); empty.tags = []; empty.blocks = []; empty.screens = [];
-  assert.ok(traceScene(900, 700, runtime(empty)).labels.some(l => l.text.includes('no tags')));
-});
-
-test('stopped ladder has no energized rails and running scan enables power flow', async () => {
-  const { ladderScene } = await import('../../prototype/ui/renderer.js'); const p = createDemo(), r = runtime(p);
-  const draw = () => ladderScene(900, 700, p, p.blocks[0], r, '');
-  assert.ok(!draw().shapes.some(s => s.color === '#169849'));
-  r.setInput('Start_PB', 1); r.step(100, true);
-  assert.ok(draw().shapes.some(s => s.color === '#169849'));
-  r.stop(); assert.ok(!draw().shapes.some(s => s.color === '#169849'));
-});
+Console.WriteLine($"C# regression tests: {passed} passed, {failed} failed.");
+return failed == 0 ? 0 : 1;

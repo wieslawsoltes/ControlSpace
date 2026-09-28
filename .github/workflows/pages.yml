@@ -1,0 +1,107 @@
+name: Uno browser and GitHub Pages
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-browser-${{ runner.os }}-${{ hashFiles('global.json', '**/*.csproj') }}
+          restore-keys: nuget-browser-${{ runner.os }}-
+      - name: Install .NET WebAssembly toolchain
+        run: dotnet workload install wasm-tools --skip-manifest-update
+      - name: Test the same C# engine used by Uno
+        run: dotnet run --project tests/ControlSpace.Tests -c Release -- --fixtures tests/fixtures
+      - name: Publish the real Uno Skia WebAssembly app
+        run: |
+          dotnet publish src/ControlSpace.App -c Release -f net10.0-browserwasm \
+            -p:ControlSpaceTargetFrameworks=net10.0-browserwasm \
+            -p:WasmShellWebAppBasePath=/ControlSpace/ -o artifacts/browser
+      - name: Stage runtime output, docs, and the separate prototype
+        run: python tools/prepare-pages.py artifacts/browser artifacts/site
+      - name: Package reusable Uno controls and workbench
+        run: |
+          for library in Controls.Uno Workbench.Uno; do
+            dotnet pack "src/ControlSpace.$library" -c Release \
+              -p:ControlSpaceTargetFrameworks=net10.0-browserwasm -o artifacts/packages
+          done
+      - run: python -m pip install playwright==1.55.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Smoke-test the compiled Uno app under the Pages subpath
+        run: |
+          mkdir -p artifacts/serve
+          ln -s "$PWD/artifacts/site" artifacts/serve/ControlSpace
+          python -m http.server 4173 --directory artifacts/serve > artifacts/server.log 2>&1 &
+          python tests/browser/uno_smoke.py http://127.0.0.1:4173/ControlSpace/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-browser-verification
+          path: |
+            artifacts/uno-verification/
+            artifacts/server.log
+            artifacts/packages/*.nupkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uno-browser-site
+          path: artifacts/site
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          path: artifacts/site
+  deploy:
+    needs: browser
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/deploy-pages@v4
+        id: deployment
+      - name: Verify deployed source identity
+        env:
+          PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import json, os, time, urllib.request
+          url = os.environ["PAGES_URL"].rstrip("/") + "/build-info.json?sha=" + os.environ["EXPECTED_SHA"]
+          for attempt in range(12):
+              try:
+                  with urllib.request.urlopen(url, timeout=30) as response:
+                      data = json.load(response)
+                  assert data["commit"] == os.environ["EXPECTED_SHA"]
+                  assert data["runtime"].startswith("Uno Platform")
+                  print("Verified live Uno deployment:", data)
+                  break
+              except Exception:
+                  if attempt == 11:
+                      raise
+                  time.sleep(5)
+          PY

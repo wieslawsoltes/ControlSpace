@@ -1,0 +1,94 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - shell: bash
+        run: |
+          dotnet publish src/ControlSpace.App -c Release -f net10.0-desktop \
+            -p:ControlSpaceTargetFrameworks=net10.0-desktop -r ${{ matrix.rid }} --self-contained true \
+            -p:Version=${GITHUB_REF_NAME#v} -o artifacts/${{ matrix.rid }}
+          python -c "import shutil;shutil.make_archive('ControlSpace-${{ matrix.rid }}','zip','artifacts/${{ matrix.rid }}')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.rid }}
+          path: ControlSpace-*.zip
+  packages-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: dotnet workload install wasm-tools --skip-manifest-update
+      - run: dotnet run --project tests/ControlSpace.Tests -c Release -- --fixtures tests/fixtures
+      - run: npm test
+      - name: Package all eight reusable libraries
+        run: |
+          for library in Core Languages Simulation Storage Engineering Rendering.Skia; do
+            dotnet pack "src/ControlSpace.$library" -c Release -p:Version=${GITHUB_REF_NAME#v} -o artifacts/packages
+          done
+          for library in Controls.Uno Workbench.Uno; do
+            dotnet pack "src/ControlSpace.$library" -c Release -p:ControlSpaceTargetFrameworks=net10.0-browserwasm -p:Version=${GITHUB_REF_NAME#v} -o artifacts/packages
+          done
+      - name: Publish portable Uno browser bundle
+        run: |
+          dotnet publish src/ControlSpace.App -c Release -f net10.0-browserwasm \
+            -p:ControlSpaceTargetFrameworks=net10.0-browserwasm -p:WasmShellWebAppBasePath=./ \
+            -p:Version=${GITHUB_REF_NAME#v} -o artifacts/browser
+          python tools/prepare-pages.py artifacts/browser artifacts/site
+          python -c "import shutil;shutil.make_archive('artifacts/ControlSpace-browser','zip','artifacts/site')"
+          git archive --format=zip --output=artifacts/ControlSpace-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-and-browser
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/ControlSpace-*.zip
+  release:
+    needs: [desktop, packages-and-browser]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Create prerelease with checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import hashlib, pathlib
+          root=pathlib.Path('release-assets')
+          files=sorted(p for p in root.rglob('*') if p.is_file())
+          (root/'SHA256SUMS').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in files))
+          PY
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --prerelease \
+            $(find release-assets -type f)
