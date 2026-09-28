@@ -77,12 +77,22 @@ async def main():
             await click('project-splitter'); await page.keyboard.press('ArrowRight')
             await wait(f'window.controlSpaceVerification.layout.ProjectWidth>{before}')
             await page.keyboard.press('Home')
-            await wait('window.controlSpaceVerification.layout.ProjectWidth===252')
+            # The preference changes before Uno's next arrange pass. Wait for actual bounds,
+            # not just the model value, before starting the next pointer gesture.
+            await wait("window.controlSpaceVerification.layout.ProjectWidth===252 && window.controlSpaceVerification.controls.find(c=>c.id==='project-splitter')?.x===252")
+            await page.wait_for_timeout(200)
             bounds = await page.evaluate("window.controlSpaceVerification.controls.find(c=>c.id==='project-splitter')")
             x, y = bounds['x'] + bounds['width'] / 2, bounds['y'] + bounds['height'] / 2
-            await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 30, y, steps=4); await page.mouse.up()
+            actions.append({'gesture': 'splitter-drag', 'bounds': bounds, 'dx': 30})
+            await page.mouse.move(x, y); await page.mouse.down()
+            await page.wait_for_timeout(100)
+            for offset in [8, 16, 24, 30]:
+                await page.mouse.move(x + offset, y)
+                await page.wait_for_timeout(80)
+            await page.mouse.up()
             await wait('window.controlSpaceVerification.layout.ProjectWidth>252')
-            await page.keyboard.press('Home'); await wait('window.controlSpaceVerification.layout.ProjectWidth===252')
+            await page.keyboard.press('Home')
+            await wait("window.controlSpaceVerification.layout.ProjectWidth===252 && window.controlSpaceVerification.controls.find(c=>c.id==='project-splitter')?.x===252")
             passed('keyboard and pointer splitter resizing and reset')
             await click('maximize-editor'); await wait('window.controlSpaceVerification.maximized')
             await click('maximize-editor'); await wait('!window.controlSpaceVerification.maximized')
