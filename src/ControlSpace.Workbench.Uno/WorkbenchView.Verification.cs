@@ -34,7 +34,7 @@ public sealed partial class WorkbenchView
             }
             Visit(this);
             var json = JsonSerializer.Serialize(new { controls, view = _view, documents = _documents.Documents, maximized = _maximized, layout = _layout, projectDrawer = _projectDrawer, taskDrawer = _taskDrawer, source = _source?.Text, blockSources = _workspace.Project.Blocks.ToDictionary(b => b.Id, b => b.Source), tagCount = _workspace.Project.Tags.Count, state = _workspace.Controller?.State.ToString(), cycle = _workspace.Controller?.Cycle ?? 0, zoom = _canvas.Zoom, portal = _portal.Visibility == Visibility.Visible });
-            Uno.Foundation.WebAssemblyRuntime.InvokeJS("window.controlSpaceVerification = " + json + ";");
+            global::Uno.Foundation.WebAssemblyRuntime.InvokeJS("window.controlSpaceVerification = " + json + ";");
         };
         _verificationTimer.Start();
     }

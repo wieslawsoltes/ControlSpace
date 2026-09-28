@@ -45,17 +45,19 @@ public sealed class WorkbenchPane : UserControl
 }
 
 /// <summary>Pointer/touch and keyboard splitter with a bounded delta supplied to the host.</summary>
-public sealed class WorkbenchSplitter : Thumb
+public sealed class WorkbenchSplitter : UserControl
 {
     public event Action<double>? ResizeRequested;
     public event Action? ResetRequested;
     public WorkbenchSplitter(bool horizontal, string id)
     {
-        Background = Brush("ACADB4"); IsTabStop = true;
-        PointerPressed += (_, _) => Focus(FocusState.Pointer);
+        IsTabStop = true;
+        var thumb = new Thumb { Background = Brush("ACADB4"), IsTabStop = false };
+        Content = thumb; HorizontalContentAlignment = HorizontalAlignment.Stretch; VerticalContentAlignment = VerticalAlignment.Stretch;
+        thumb.PointerPressed += (_, _) => Focus(FocusState.Pointer);
         AutomationProperties.SetAutomationId(this, id); AutomationProperties.SetName(this, horizontal ? "Resize inspector height" : "Resize pane width");
         ToolTipService.SetToolTip(this, "Drag to resize. Arrow keys: 10 pixels. Home: reset.");
-        DragDelta += (_, e) => ResizeRequested?.Invoke(horizontal ? e.VerticalChange : e.HorizontalChange);
+        thumb.DragDelta += (_, e) => ResizeRequested?.Invoke(horizontal ? e.VerticalChange : e.HorizontalChange);
         DoubleTapped += (_, e) => { ResetRequested?.Invoke(); e.Handled = true; };
         KeyDown += (_, e) =>
         {
