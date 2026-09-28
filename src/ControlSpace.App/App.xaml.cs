@@ -17,6 +17,11 @@ public sealed partial class App : Application
         try
         {
             _workbench = new WorkbenchView(new PlatformProjectFiles()); _window.Content = _workbench; await _workbench.InitializeAsync();
+#if __WASM__
+            using var location = System.Runtime.InteropServices.JavaScript.JSHost.GlobalThis.GetPropertyAsJSObject("location");
+            if ((location?.GetPropertyAsString("search") ?? "").TrimStart('?').Split('&').Contains("verify=1"))
+                _workbench.StartVerificationProbe();
+#endif
             _window.Closed += (_, _) => _workbench.Dispose(); Console.WriteLine("[ControlSpace] Uno workspace ready");
         }
         catch (Exception ex)

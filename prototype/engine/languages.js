@@ -5,11 +5,15 @@ export class SclError extends Error {
 export function lexScl(source) {
   if (source.length > 1000000) throw new SclError('Source exceeds 1 MB.');
   const tokens = []; let index = 0, line = 1, column = 1;
-  const advance = () => { if (source[index++] === '\n') { line++; column = 1; } else column++; };
+  const advance = () => {
+    const current = source[index++];
+    if (current === '\r' || current === '\n' && (index < 2 || source[index - 2] !== '\r')) { line++; column = 1; }
+    else if (current !== '\n') column++;
+  };
   while (index < source.length) {
     if (tokens.length >= 100000) throw new SclError('Token limit exceeded.', line, column);
     if (/\s/.test(source[index])) { advance(); continue; }
-    if (source.slice(index, index + 2) === '//') { while (index < source.length && source[index] !== '\n') advance(); continue; }
+    if (source.slice(index, index + 2) === '//') { while (index < source.length && source[index] !== '\r' && source[index] !== '\n') advance(); continue; }
     if (source.slice(index, index + 2) === '(*') { advance(); advance(); while (index + 1 < source.length && source.slice(index, index + 2) !== '*)') advance(); if (index + 1 >= source.length) throw new SclError('Unterminated comment.', line, column); advance(); advance(); continue; }
     const start = index, sl = line, sc = column;
     if (source[index] === '"') { advance(); const ns = index; while (index < source.length && source[index] !== '"') advance(); if (index >= source.length) throw new SclError('Unterminated quoted tag name.', sl, sc); const text = source.slice(ns, index); advance(); tokens.push({ text, line: sl, column: sc, quoted: true, start, end: index }); continue; }

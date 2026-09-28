@@ -103,12 +103,17 @@ public sealed class SclParser
     private static List<Token> Lex(string source)
     {
         var tokens = new List<Token>(); int i = 0, line = 1, column = 1;
-        void Advance() { if (source[i++] == '\n') { line++; column = 1; } else column++; }
+        void Advance()
+        {
+            char current = source[i++];
+            if (current == '\r' || current == '\n' && (i < 2 || source[i - 2] != '\r')) { line++; column = 1; }
+            else if (current != '\n') column++;
+        }
         while (i < source.Length)
         {
             if (tokens.Count >= 100000) throw new SclException("Token limit exceeded.", line, column);
             if (char.IsWhiteSpace(source[i])) { Advance(); continue; }
-            if (source[i] == '/' && i + 1 < source.Length && source[i + 1] == '/') { while (i < source.Length && source[i] != '\n') Advance(); continue; }
+            if (source[i] == '/' && i + 1 < source.Length && source[i + 1] == '/') { while (i < source.Length && source[i] is not ('\r' or '\n')) Advance(); continue; }
             if (source[i] == '(' && i + 1 < source.Length && source[i + 1] == '*')
             {
                 Advance(); Advance();

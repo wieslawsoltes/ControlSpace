@@ -4,7 +4,7 @@ using Windows.Storage;
 using Windows.Storage.Pickers;
 namespace ControlSpace.App;
 
-internal sealed class PlatformProjectFiles : IProjectFiles
+internal sealed class PlatformProjectFiles : IProjectFiles, IWorkbenchPreferences
 {
     public async Task<string?> OpenAsync()
     {
@@ -28,6 +28,16 @@ internal sealed class PlatformProjectFiles : IProjectFiles
     public async Task WriteRecoveryAsync(string contents)
     {
         var file = await ApplicationData.Current.LocalFolder.CreateFileAsync("recovery.controlspace.json", CreationCollisionOption.ReplaceExisting);
+        await FileIO.WriteTextAsync(file, contents);
+    }
+    public async Task<string?> ReadLayoutAsync()
+    {
+        var item = await ApplicationData.Current.LocalFolder.TryGetItemAsync("workbench-layout.json");
+        return item is StorageFile file ? await FileIO.ReadTextAsync(file) : null;
+    }
+    public async Task WriteLayoutAsync(string contents)
+    {
+        var file = await ApplicationData.Current.LocalFolder.CreateFileAsync("workbench-layout.json", CreationCollisionOption.ReplaceExisting);
         await FileIO.WriteTextAsync(file, contents);
     }
 }

@@ -30,6 +30,8 @@ jobs:
         run: dotnet workload install wasm-tools --skip-manifest-update
       - name: Test the same C# engine used by Uno
         run: dotnet run --project tests/ControlSpace.Tests -c Release -- --fixtures tests/fixtures
+      - name: Workbench layout and editor session regressions
+        run: dotnet run --project tests/ControlSpace.Workbench.Tests -c Release
       - name: Publish the real Uno Skia WebAssembly app
         run: |
           dotnet publish src/ControlSpace.App -c Release -f net10.0-browserwasm \
@@ -45,12 +47,16 @@ jobs:
           done
       - run: python -m pip install playwright==1.55.0
       - run: python -m playwright install --with-deps chromium
-      - name: Smoke-test the compiled Uno app under the Pages subpath
+      - name: Test compiled Uno UI workflows under the Pages subpath
         run: |
           mkdir -p artifacts/serve
           ln -s "$PWD/artifacts/site" artifacts/serve/ControlSpace
           python -m http.server 4173 --directory artifacts/serve > artifacts/server.log 2>&1 &
           python tests/browser/uno_smoke.py http://127.0.0.1:4173/ControlSpace/
+      - name: Stage genuine Uno UI previews
+        run: |
+          mkdir -p artifacts/site/docs/uno
+          cp artifacts/uno-verification/uno-*.png artifacts/site/docs/uno/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -60,7 +66,9 @@ jobs:
             artifacts/server.log
             artifacts/packages/*.nupkg
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
+          if-no-files-found: ignore
           name: uno-browser-site
           path: artifacts/site
       - uses: actions/upload-pages-artifact@v3
