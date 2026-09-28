@@ -81,7 +81,11 @@ public sealed partial class WorkbenchView
         _taskPane = new WorkbenchPane("Instructions", taskContent, "task-pane"); _taskPane.ToggleRequested += ToggleTasks; _taskPane.PinRequested += () => SetLayout(_layout with { AutoHideTasks = !_layout.AutoHideTasks }); Grid.SetColumn(_taskPane, 4); _body.Children.Add(_taskPane);
         var rail = new StackPanel { Background = Brush("C9C9D1"), Spacing = 2 };
         foreach (string card in new[] { "Instructions", "Libraries", "Testing" }) rail.Children.Add(VerticalTab(card, () => { _maximized = false; _projectDrawer = false; _taskDrawer = ActualWidth < 1100; SetLayout(_layout with { TaskCard = card, TasksVisible = true }); ShowPalette(); }));
-        Grid.SetColumn(rail, 5); _body.Children.Add(rail); Grid.SetRow(_body, 3); root.Children.Add(_body); Grid.SetRow(_portal, 3); root.Children.Add(_portal);
+        Grid.SetColumn(rail, 5); _body.Children.Add(rail);
+        // Grid hit testing follows child order. Keep overlay-capable panes above the editor.
+        _body.Children.Remove(_treePane); _body.Children.Remove(_taskPane);
+        _body.Children.Add(_treePane); _body.Children.Add(_taskPane);
+        Grid.SetRow(_body, 3); root.Children.Add(_body); Grid.SetRow(_portal, 3); root.Children.Add(_portal);
         var footer = new Grid(); footer.ColumnDefinitions.Add(new() { Width = new GridLength(252) }); footer.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         footer.Children.Add(Button("◀  Portal view", () => Navigate("portal"), "portal-view")); Grid.SetColumn(_editorBar, 1); footer.Children.Add(_editorBar); Grid.SetRow(footer, 4); root.Children.Add(footer);
         _editorBar.ActivateRequested += id => Safe(() => Navigate(id)); _editorBar.CloseRequested += CloseDocument; _editorBar.CloseAllRequested += CloseAllDocuments;
