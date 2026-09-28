@@ -121,7 +121,12 @@ async def main():
             await page.screenshot(path=str(args.output / 'uno-compact.png'))
             passed('compact viewport has usable project and task drawers')
             await page.set_viewport_size({'width':1600,'height':1000}); await page.wait_for_timeout(500)
-            await click('task-card-Testing'); await page.wait_for_timeout(900)
+            await wait("window.controlSpaceVerification.controls.find(c=>c.id==='task-card-Testing')?.x===1571")
+            await click('task-card-Testing')
+            await wait("window.controlSpaceVerification.layout.TaskCard==='Testing'")
+            await page.wait_for_function("""() => Object.keys(localStorage).some(key =>
+                key.endsWith('ControlSpace.Workbench.Layout.v1') &&
+                (localStorage.getItem(key) || '').includes('Testing'))""", timeout=15000)
             await page.reload(wait_until='domcontentloaded')
             await page.wait_for_function('!!window.controlSpaceVerification', timeout=120000)
             await wait("window.controlSpaceVerification.layout.TaskCard==='Testing'")

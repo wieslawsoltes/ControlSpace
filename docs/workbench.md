@@ -8,13 +8,13 @@ Project folders expand and collapse. Search shows matching objects with their an
 
 Drag pane dividers to resize. Focus a divider and use arrow keys for 10-pixel increments, or Home to reset its size. The project pane, task cards and inspector can be collapsed. The task pane supports a pin/automatic-collapse preference. Maximize/restore preserves the normal pane dimensions. Window > Reset window layout restores defaults.
 
-User layout is stored separately in `workbench-layout.json` through the optional `IWorkbenchPreferences` host adapter. Values are bounded and malformed or future-version settings fall back to defaults. Pane changes never edit project content or enter its undo history. Below 1100 pixels task cards use an overlay drawer; below 760 pixels the project tree does too.
+User layout is stored separately through the optional `IWorkbenchPreferences` host adapter: desktop uses `workbench-layout.json`; the browser uses the app-scoped `ControlSpace.Workbench.Layout.v1` local-settings key so a completed save survives immediate reload. Earlier browser layout files are still read for migration. Values are bounded and malformed or future-version settings fall back to defaults. Pane changes never edit project content or enter its undo history. Below 1100 pixels task cards use an overlay drawer; below 760 pixels the project tree does too.
 
 Portal view groups project actions by Start, Devices & networks, PLC programming, Visualization and Online & diagnostics. Return to Project view to resume the active editor.
 
 ## Editors and inspector
 
-The editor toolbar follows the current document: LAD networks, contacts and zoom; tags and CSV export; HMI design/runtime and object insertion; device configuration. The right task card can show context tools, the project library or virtual CPU testing commands. HMI documents identify the actual selected screen rather than always rendering the first screen.
+The editor toolbar follows the current document: LAD networks, contacts and zoom; tags and CSV export; HMI design/runtime and object insertion; device configuration. The right task card can show context tools, the project library or virtual inputs.
 
 Properties are edited in compact label/value rows in the bottom inspector. Info includes compilation diagnostics, severity filters, cross-references and virtual inputs. Clicking a supported compilation diagnostic navigates to its source block and position. Diagnostics displays the virtual controller state; all execution remains in-process simulation.
 

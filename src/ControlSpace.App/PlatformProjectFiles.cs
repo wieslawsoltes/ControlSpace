@@ -30,12 +30,29 @@ internal sealed class PlatformProjectFiles : IProjectFiles, IWorkbenchPreference
         var file = await ApplicationData.Current.LocalFolder.CreateFileAsync("recovery.controlspace.json", CreationCollisionOption.ReplaceExisting);
         await FileIO.WriteTextAsync(file, contents);
     }
+    private const string LayoutKey = "ControlSpace.Workbench.Layout.v1";
     public async Task<string?> ReadLayoutAsync()
     {
+#if __WASM__
+        if (ApplicationData.Current.LocalSettings.Values.TryGetValue(LayoutKey, out var stored) && stored is string saved)
+            return saved;
+#endif
+        // Retain the file reader for desktop and migration from earlier browser previews.
         var item = await ApplicationData.Current.LocalFolder.TryGetItemAsync("workbench-layout.json");
         return item is StorageFile file ? await FileIO.ReadTextAsync(file) : null;
     }
-    public async Task WriteLayoutAsync(string contents)
+    public Task WriteLayoutAsync(string contents)
+    {
+#if __WASM__
+        // Small preferences must survive immediate reload, without waiting for the
+        // browser virtual filesystem's periodic IndexedDB synchronization.
+        ApplicationData.Current.LocalSettings.Values[LayoutKey] = contents;
+        return Task.CompletedTask;
+#else
+        return WriteLayoutFileAsync(contents);
+#endif
+    }
+    private static async Task WriteLayoutFileAsync(string contents)
     {
         var file = await ApplicationData.Current.LocalFolder.CreateFileAsync("workbench-layout.json", CreationCollisionOption.ReplaceExisting);
         await FileIO.WriteTextAsync(file, contents);
