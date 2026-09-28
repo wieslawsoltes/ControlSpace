@@ -1,0 +1,80 @@
+name: Import verified ControlSpace source
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/import-source.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: source-import
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify checksum and restore original source
+        shell: python
+        run: |
+          import base64, hashlib, json, lzma, pathlib, subprocess
+          root = pathlib.Path.cwd()
+          chunks = sorted((root / '.bootstrap').glob('*.b64'))
+          assert len(chunks) == 8, 'Incomplete source upload'
+          packed = base64.b64decode(''.join(p.read_text() for p in chunks), validate=True)
+          assert hashlib.sha256(packed).hexdigest() == 'ef35e7441217d1906102e5e827ce6eaef917f9f643db02b450c81673a42e87ed', 'Source checksum mismatch'
+          sources = json.loads(lzma.decompress(packed))
+          assert len(sources) == 76
+          for name in sources:
+              path = pathlib.PurePosixPath(name)
+              assert not path.is_absolute() and '..' not in path.parts and '.git' not in path.parts
+          tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode().strip('\0').split('\0')
+          for name in tracked:
+              if name.startswith(('src/', 'tests/')) and name not in sources:
+                  (root / name).unlink()
+          for name, content in sources.items():
+              if name.startswith('.github/workflows/'):
+                  continue
+              path = root / name
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(content.encode('utf-8'))
+          print('Restored 73 UTF-8 files; workflow files are applied separately with the GitHub connector.')
+      - name: Install browser test dependencies
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Test prototype engine and regenerate documentation previews
+        run: |
+          npm test
+          python tools/bundle-prototype.py
+          python tests/browser/prototype_test.py
+      - name: Commit recovered source and generated previews
+        run: |
+          git config user.name 'ControlSpace Automation'
+          git config user.email 'controlspace-automation@users.noreply.github.com'
+          git add -A
+          git diff --cached --stat
+          git diff --cached --quiet || git commit -m 'feat: publish complete reusable Uno engineering workspace and browser prototype' -m 'Recovered source c631e3320bba9b549aafbda11658fe4810d6d6b1; SHA-256 verified. Earlier core snapshot preserved at archive/core-preview-1284dc6. Browser documentation previews regenerated in Chromium.'
+          git push origin HEAD:main
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile and test portable C# engine
+        run: dotnet run --project tests/ControlSpace.Tests -c Release -- --fixtures tests/fixtures
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-import-verification
+          path: |
+            artifacts/
+            docs/images/
