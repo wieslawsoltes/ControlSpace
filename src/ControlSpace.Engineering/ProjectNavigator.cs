@@ -156,6 +156,22 @@ public sealed class ProjectNavigator
         }
         SelectedId = _visible[Math.Clamp(index, 0, _visible.Count - 1)].Id; return SelectedId;
     }
+    /// <summary>Select the next visible caption beginning with this character,
+    /// wrapping after the last row. Repeated initials cycle through siblings and
+    /// other matches without changing the search, expansion or active document.</summary>
+    public string? SelectByInitial(char initial)
+    {
+        if (!char.IsLetterOrDigit(initial) || _visible.Count == 0) return null;
+        string prefix = initial.ToString();
+        int start = VisibleIndexOf(SelectedId);
+        for (int offset = 1; offset <= _visible.Count; offset++)
+        {
+            int index = (start + offset) % _visible.Count;
+            if (!_visible[index].Caption.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            SelectedId = _visible[index].Id; return SelectedId;
+        }
+        return null;
+    }
     /// <summary>Reveal the active document explicitly. Does not silently clear a user's filter.</summary>
     public string? RevealActive()
     {

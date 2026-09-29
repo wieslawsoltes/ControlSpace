@@ -39,6 +39,10 @@ public sealed class ProjectTree : UserControl
     public int VisibleEntryCount => _navigator.VisibleEntries.Count;
     public string? SelectedId => _navigator.SelectedId;
     public string Filter => _navigator.Filter;
+    public int SelectedVisibleIndex => _navigator.VisibleIndexOf(_navigator.SelectedId);
+    public string? FocusedId => _pool.FirstOrDefault(r => r.Button.FocusState != FocusState.Unfocused)?.Entry?.Id;
+    public double VerticalOffset => _scroll.VerticalOffset;
+    public double ViewportHeight => _scroll.ViewportHeight;
     public ProjectTree()
     {
         IsTabStop = true;
@@ -69,6 +73,9 @@ public sealed class ProjectTree : UserControl
         Grid.SetRow(_scroll, 2); root.Children.Add(_scroll);
         _summary.Margin = new Thickness(7, 0, 5, 0); AutomationProperties.SetAutomationId(_summary, "tree-summary"); Grid.SetRow(_summary, 3); root.Children.Add(_summary);
         Content = root; Loaded += (_, _) => RenderRows();
+        // Handle navigation before ScrollViewer consumes Home/End/Page keys as
+        // viewport-only scrolling. Selection and focus must move together.
+        _rows.KeyDown += OnKey;
         KeyDown += OnKey;
     }
     public void SetProject(ControlProject project)
@@ -181,6 +188,9 @@ public sealed class ProjectTree : UserControl
     private void OnKey(object sender, KeyRoutedEventArgs e)
     {
         if (e.Handled || XamlRoot is not null && FocusManager.GetFocusedElement(XamlRoot) == _search) return;
+        bool commandModifier = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down)
+            || Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (commandModifier) return;
         ProjectNavigationMove? move = e.Key switch
         {
             VirtualKey.Up => ProjectNavigationMove.Previous, VirtualKey.Down => ProjectNavigationMove.Next,
@@ -196,6 +206,13 @@ public sealed class ProjectTree : UserControl
             int page = Math.Max(1, (int)(_scroll.ViewportHeight / RowHeight) - 1);
             int index = Math.Clamp(_navigator.VisibleIndexOf(_navigator.SelectedId) + (e.Key == VirtualKey.PageDown ? page : -page), 0, Math.Max(0, _navigator.VisibleEntries.Count - 1));
             if (_navigator.VisibleEntries.Count > 0) FocusEntry(_navigator.VisibleEntries[index].Id); e.Handled = true;
+        }
+        else if (e.Key is >= VirtualKey.A and <= VirtualKey.Z or >= VirtualKey.Number0 and <= VirtualKey.Number9)
+        {
+            // Match the project tree's initial-letter navigation. Do not alter the
+            // search text, open a document, or intercept modified app shortcuts.
+            if (_navigator.SelectByInitial((char)e.Key) is string id) FocusEntry(id);
+            e.Handled = true;
         }
         else if ((e.Key is VirtualKey.Enter or VirtualKey.Space) && FocusState != FocusState.Unfocused && _navigator.Selected is { } selected)
         { Activate(selected); e.Handled = true; }

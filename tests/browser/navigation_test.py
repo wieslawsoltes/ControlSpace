@@ -114,7 +114,7 @@ async def main():
             await click('tree-project')
             await wait('window.controlSpaceVerification.navigation.visible>2000')
             await page.keyboard.press('End')
-            await wait("window.controlSpaceVerification.navigation.selected==='library'")
+            await wait("window.controlSpaceVerification.navigation.selected==='library' && window.controlSpaceVerification.navigation.focused==='library'")
             await page.keyboard.press('ArrowUp')
             await wait("window.controlSpaceVerification.navigation.selected==='hmi:s999'")
             await page.keyboard.press('Enter')
@@ -123,6 +123,33 @@ async def main():
             assert nav['rows'] <= 40
             samples['endOfOutline'] = nav
             passed('keyboard navigation reaches and opens the final offscreen HMI screen')
+
+            await click('tree-reveal-active')
+            await wait("window.controlSpaceVerification.navigation.focused==='hmi:s999'")
+            nav = (await state())['navigation']
+            stride = max(1, int(nav['viewport'] / 23) - 1)
+            expected = max(0, nav['selectedIndex'] - stride)
+            await page.keyboard.press('PageUp')
+            await wait(f"window.controlSpaceVerification.navigation.selectedIndex==={expected} && window.controlSpaceVerification.navigation.focused===window.controlSpaceVerification.navigation.selected")
+            await page.keyboard.press('PageDown')
+            await wait(f"window.controlSpaceVerification.navigation.selectedIndex==={nav['selectedIndex']} && window.controlSpaceVerification.navigation.focused===window.controlSpaceVerification.navigation.selected")
+            await page.keyboard.press('Home')
+            await wait("window.controlSpaceVerification.navigation.selected==='project' && window.controlSpaceVerification.navigation.focused==='project' && window.controlSpaceVerification.navigation.offset===0")
+            assert (await state())['view'] == 'hmi:s999'
+            passed('Home End and Page keys move selection and focus rather than only the scrollbar')
+
+            before = (await state())['navigation']
+            await page.keyboard.press('p')
+            await wait("window.controlSpaceVerification.navigation.selected==='plc'")
+            await page.keyboard.press('p')
+            await wait("window.controlSpaceVerification.navigation.selected==='blocks'")
+            await page.keyboard.press('s')
+            await wait("window.controlSpaceVerification.navigation.selected==='screens'")
+            after = (await state())['navigation']
+            assert after['projectionBuilds'] == before['projectionBuilds']
+            assert after['indexBuilds'] == before['indexBuilds']
+            assert after['filter'] == '' and (await state())['view'] == 'hmi:s999'
+            passed('initial-letter keys select the next visible match without opening or filtering')
 
             await search('Program_0999')
             await wait('window.controlSpaceVerification.navigation.visible===4')
@@ -156,7 +183,7 @@ async def main():
         finally:
             await page.screenshot(path=str(args.output/'uno-navigation-last.png'))
             final = await state()
-            (args.output/'navigation-ui.json').write_text(json.dumps({'checks':checks,'errors':errors,'console':logs,'samples':samples,'failure':failure,'navigation':(final or {}).get('navigation')},indent=2)+'\n')
+            (args.output/'navigation-ui.json').write_text(json.dumps({'checks':checks,'errors':errors,'console':logs,'samples':samples,'failure':failure,'navigation':(final or {}).get('navigation'),'controls':(final or {}).get('controls')},indent=2)+'\n')
             print(f'Uno navigation workflows: {len(checks)} passed',flush=True)
             await browser.close()
 asyncio.run(main())
