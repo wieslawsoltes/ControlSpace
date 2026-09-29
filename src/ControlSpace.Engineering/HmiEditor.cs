@@ -99,10 +99,13 @@ public sealed class HmiEditor(Workspace workspace)
     }
     private static void Apply(HmiScreen s, IReadOnlyDictionary<string, RectD> boxes)
     {
+        var indexes = s.Objects.Select((o, index) => (o.Id, index)).ToDictionary(x => x.Id, x => x.index, StringComparer.Ordinal);
         foreach (var (id, b) in boxes)
         {
-            int i = s.Objects.FindIndex(o => o.Id == id); if (i < 0) throw new ArgumentException("A selected object no longer exists.");
-            if (!double.IsFinite(b.X) || !double.IsFinite(b.Y) || !double.IsFinite(b.Width) || !double.IsFinite(b.Height) || b.Width < 1 || b.Height < 1 || b.X < 0 || b.Y < 0 || b.X + b.Width > s.Width + 1e-7 || b.Y + b.Height > s.Height + 1e-7) throw new ArgumentException("Objects must remain inside the screen, with width and height of at least one pixel.");
+            if (!indexes.TryGetValue(id, out int i)) throw new ArgumentException("A selected object no longer exists.");
+            // Preserve valid fractional legacy objects without permitting further shrinking.
+            var original = s.Objects[i];
+            if (!double.IsFinite(b.X) || !double.IsFinite(b.Y) || !double.IsFinite(b.Width) || !double.IsFinite(b.Height) || b.Width < Math.Min(1, original.Width) || b.Height < Math.Min(1, original.Height) || b.X < 0 || b.Y < 0 || b.X + b.Width > s.Width + 1e-7 || b.Y + b.Height > s.Height + 1e-7) throw new ArgumentException("Objects must remain inside the screen, with width and height of at least one pixel.");
             // Remove arithmetic roundoff at the right and bottom edges only.
             s.Objects[i] = s.Objects[i] with { X = Math.Min(b.X, s.Width - b.Width), Y = Math.Min(b.Y, s.Height - b.Height), Width = b.Width, Height = b.Height };
         }
@@ -116,7 +119,7 @@ public sealed class HmiEditor(Workspace workspace)
     {
         var s = Screen(p, screenId); int i = s.Objects.FindIndex(o => o.Id == next.Id); if (i < 0) throw new ArgumentException("Object no longer exists.");
         if (s.Objects[i].Kind != next.Kind) throw new ArgumentException("Object type cannot be changed by a property edit.");
-        ValidateBinding(p, next); Apply(s, new Dictionary<string, RectD> { [next.Id] = Bounds(next) }); s.Objects[i] = next;
+        ValidateBinding(p, next); Apply(s, new Dictionary<string, RectD> { [next.Id] = Bounds(next) }); s.Objects[i] = next with { X = s.Objects[i].X, Y = s.Objects[i].Y };
     });
     public void DeleteObjects(ControlProject expected, string screenId, IEnumerable<string> ids)
     {

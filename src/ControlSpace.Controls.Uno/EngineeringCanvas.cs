@@ -148,7 +148,8 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
         catch (Exception ex) { Console.WriteLine("[ControlSpace] Renderer font fallback: " + ex.Message); }
     }
     public ControlProject Project { get; set; } = DemoProject.Create();
-    public VirtualPlc? Controller { get; set; }
+    private VirtualPlc? _controller;
+    public VirtualPlc? Controller { get => _controller; set { if (ReferenceEquals(_controller, value)) return; _controller = value; CancelHmiInteraction(); } }
     public EditorMode Mode { get; set; }
     public string BlockId { get; set; } = "main";
     public string ScreenId { get; set; } = "";

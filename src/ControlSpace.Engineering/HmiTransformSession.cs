@@ -35,8 +35,9 @@ public sealed class HmiTransformSession
                 double bestX = tolerance + 1, bestY = tolerance + 1; double rawX = b.X + dx, rawY = b.Y + dy;
                 void Compare(double target, double position, double size, bool horizontal)
                 {
-                    foreach (double offset in new[] { 0d, size / 2, size })
+                    for (int anchor = 0; anchor < 3; anchor++)
                     {
+                        double offset = anchor * size / 2;
                         double difference = target - position - offset, distance = Math.Abs(difference);
                         if (distance > tolerance) continue;
                         if (horizontal && distance < bestX) { bestX = distance; x = rawX + difference; GuideX = target; }
@@ -56,13 +57,13 @@ public sealed class HmiTransformSession
             dx = clampedX - b.X; dy = clampedY - b.Y;
             return _objects.ToDictionary(o => o.Id, o => new RectD(o.X + dx, o.Y + dy, o.Width, o.Height));
         }
-        double minWidth = _objects.Max(o => b.Width / o.Width), minHeight = _objects.Max(o => b.Height / o.Height);
+        double minWidth = _objects.Max(o => b.Width / o.Width * Math.Min(1, o.Width)), minHeight = _objects.Max(o => b.Height / o.Height * Math.Min(1, o.Height));
         double left = b.X, top = b.Y, right = b.X + b.Width, bottom = b.Y + b.Height;
         if (Handle.Contains('w')) left = Math.Clamp(Round(b.X + dx), 0, right - minWidth);
         if (Handle.Contains('e')) right = Math.Clamp(Round(right + dx), left + minWidth, Screen.Width);
         if (Handle.Contains('n')) top = Math.Clamp(Round(b.Y + dy), 0, bottom - minHeight);
         if (Handle.Contains('s')) bottom = Math.Clamp(Round(bottom + dy), top + minHeight, Screen.Height);
         double sx = (right - left) / b.Width, sy = (bottom - top) / b.Height;
-        return _objects.ToDictionary(o => o.Id, o => new RectD(left + (o.X - b.X) * sx, top + (o.Y - b.Y) * sy, Math.Max(1, o.Width * sx), Math.Max(1, o.Height * sy)));
+        return _objects.ToDictionary(o => o.Id, o => new RectD(left + (o.X - b.X) * sx, top + (o.Y - b.Y) * sy, Math.Max(Math.Min(1, o.Width), o.Width * sx), Math.Max(Math.Min(1, o.Height), o.Height * sy)));
     }
 }

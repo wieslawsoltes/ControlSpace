@@ -190,7 +190,8 @@ public sealed partial class WorkbenchView
     private void ShowHmiProperties()
     {
         if (!IsHmiView) return; UpdateHmiChrome();
-        var screen = ActiveHmi; var ids = _canvas.HmiSelection; var objects = ids.Select(id => screen.Objects.FirstOrDefault(o => o.Id == id)).OfType<HmiObject>().ToArray();
+        var screen = ActiveHmi; var ids = _canvas.HmiSelection; var lookup = screen.Objects.ToDictionary(o => o.Id, StringComparer.Ordinal);
+        var objects = ids.Select(id => lookup.GetValueOrDefault(id)).OfType<HmiObject>().ToArray();
         _selection = objects.FirstOrDefault()?.Id ?? ""; SetInspector("Properties", false); _properties.Children.Clear();
         _properties.Children.Add(Label(objects.Length == 0 ? screen.Name : objects.Length == 1 ? objects[0].Kind + " · " + objects[0].Text : objects.Length + " objects selected", 13, bold: true));
         if (objects.Length == 0)

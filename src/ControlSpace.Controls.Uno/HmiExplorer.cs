@@ -70,6 +70,7 @@ public sealed class HmiExplorer : UserControl
         {
             var rows = (_list.ItemsSource as IEnumerable<HmiExplorerRow>) ?? [];
             if (!_objects) _list.SelectedItem = rows.FirstOrDefault(r => selected.Contains(r.Id));
+            else if (rows.Any() && rows.All(row => selected.Contains(row.Id))) _list.SelectAll();
             else { _list.SelectedItems.Clear(); foreach (var row in rows) if (selected.Contains(row.Id)) _list.SelectedItems.Add(row); }
         }
         finally { _sync = false; }
