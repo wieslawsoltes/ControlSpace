@@ -35,6 +35,7 @@ public readonly record struct RectD(double X, double Y, double Width, double Hei
 
 public static class PlcValues
 {
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool IsValid(PlcType type, double value) => double.IsFinite(value) && (type switch
     {
         PlcType.Bool => value is 0 or 1,

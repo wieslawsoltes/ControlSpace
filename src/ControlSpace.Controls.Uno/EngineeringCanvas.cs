@@ -15,7 +15,7 @@ namespace ControlSpace.Controls.Uno;
 public enum EditorMode { Ladder, Devices, Hmi, Trace }
 
 /// <summary>Shared host-backed Skia editor. No CPU bitmap uploads or private render loop.</summary>
-public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
+public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
 {
     private readonly EngineeringRenderer _renderer = new();
     private IReadOnlyList<HitRegion> _hits = [];
@@ -59,7 +59,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         if (zoom is float z) Zoom = float.IsFinite(z) ? Math.Clamp(z, .5f, 2) : 1;
         if (vertical is float v) ScrollOffset = float.IsFinite(v) ? v : 0;
         if (horizontal is float h) HorizontalOffset = float.IsFinite(h) ? h : 0;
-        ClampView(); Invalidate();
+        ClampView(); RequestRender();
     }
     private void ClampView()
     {
@@ -119,13 +119,13 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
             ReferenceEquals(expected, Project) && Enum.IsDefined(kind) && Project.Tags.Any(t => LadderInstructions.Accepts(kind, t)) &&
             point.X >= 0 && point.Y >= 0 && point.X < ActualWidth && point.Y < ActualHeight)
             hit = Hit(point);
-        if (_instructionDropPreview != hit) { _instructionDropPreview = hit; Invalidate(); }
+        if (_instructionDropPreview != hit) { _instructionDropPreview = hit; RequestRender(); }
         return hit?.Id;
     }
     public void ClearInstructionDropPreview()
     {
         if (_instructionDropPreview is null) return;
-        _instructionDropPreview = null; Invalidate();
+        _instructionDropPreview = null; RequestRender();
     }
     private void DrawInstructionDropPreview(SKCanvas canvas)
     {
@@ -143,7 +143,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
             var regular = await StorageFile.GetFileFromApplicationUriAsync(new Uri("ms-appx:///Uno.Fonts.OpenSans/Fonts/OpenSans-Regular.ttf"));
             var bold = await StorageFile.GetFileFromApplicationUriAsync(new Uri("ms-appx:///Uno.Fonts.OpenSans/Fonts/OpenSans-SemiBold.ttf"));
             using var normalStream = await regular.OpenStreamForReadAsync(); using var boldStream = await bold.OpenStreamForReadAsync();
-            if (_disposed) return; _renderer.SetFonts(normalStream, boldStream); Invalidate();
+            if (_disposed) return; _renderer.SetFonts(normalStream, boldStream); RequestRender();
         }
         catch (Exception ex) { Console.WriteLine("[ControlSpace] Renderer font fallback: " + ex.Message); }
     }
@@ -165,7 +165,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         MinHeight = 100; MinWidth = 160; IsTabStop = true;
         PointerPressed += Pressed; PointerReleased += Released; PointerCanceled += Cancelled;
         PointerCaptureLost += Cancelled; PointerWheelChanged += Wheel;
-        SizeChanged += (_, _) => Invalidate(); Loaded += async (_, _) => await LoadFontsAsync();
+        SizeChanged += (_, _) => RequestRender(); Loaded += async (_, _) => { RequestRender(); await LoadFontsAsync(); };
         DoubleTapped += (_, e) => { if (Mode == EditorMode.Ladder && Hit(e.GetPosition(this)) is HitRegion hit) { EditRequested?.Invoke(hit.Id); e.Handled = true; } };
         RightTapped += (_, e) => { if (Mode == EditorMode.Ladder && Hit(e.GetPosition(this)) is HitRegion hit) { Selection = hit.Id; Selected?.Invoke(hit.Id); ContextMenuRequested?.Invoke(hit.Id, e.GetPosition(this)); e.Handled = true; } };
         KeyDown += LadderKey;
@@ -181,23 +181,26 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
     protected override void RenderOverride(SKCanvas canvas, Size area)
     {
         float width = (float)area.Width, height = (float)area.Height;
-        var snapshot = Controller?.Snapshot(); RenderResult? result = null;
+        long paintStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        PaintCount++;
+        var snapshot = Controller?.ReadView; RenderResult? result = null;
         switch (Mode)
         {
             case EditorMode.Ladder:
                 var block = Project.Blocks.Find(b => b.Id == BlockId && b.Language == BlockLanguage.LAD);
                 ClampView();
-                if (block is not null) result = _renderer.Ladder(canvas, width, height, block, Project.Tags, snapshot, Selection, ScrollOffset, Zoom, HorizontalOffset, GetLayout());
+                if (block is not null) result = _renderer.LadderView(canvas, width, height, block, Project.Tags, snapshot, Selection, ScrollOffset, Zoom, HorizontalOffset, GetLayout());
                 else canvas.Clear(SKColors.White);
                 break;
             case EditorMode.Devices: result = _renderer.Devices(canvas, width, height, Project, Selection); break;
             case EditorMode.Hmi:
                 canvas.Clear(SKColor.Parse("#E1E5E8"));
-                if (CurrentScreen is HmiScreen screen) result = _renderer.Hmi(canvas, width, height, screen, Project.Tags, snapshot, Selection, HmiRuntime);
+                if (CurrentScreen is HmiScreen screen) result = _renderer.HmiView(canvas, width, height, screen, Project.Tags, snapshot, Selection, HmiRuntime);
                 break;
-            case EditorMode.Trace: _renderer.Trace(canvas, width, height, Controller?.Trace.Read() ?? [], Project.Tags); break;
+            case EditorMode.Trace: _renderer.Trace(canvas, width, height, (IReadOnlyList<ScanSnapshot>?)Controller?.Trace ?? Array.Empty<ScanSnapshot>(), Project.Tags); break;
         }
         DrawInstructionDropPreview(canvas);
+        LastPaintMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(paintStart).TotalMilliseconds;
         _hits = result?.Hits ?? []; _contentHeight = result?.ContentHeight ?? height;
         var metrics = (ContentWidth, ContentHeight, ScrollOffset, HorizontalOffset, Zoom, ActualWidth, ActualHeight, Mode);
         if (metrics != _lastMetrics) { _lastMetrics = metrics; DispatcherQueue.TryEnqueue(() => { if (!_disposed) ViewportChanged?.Invoke(); }); }
@@ -207,9 +210,9 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         Focus(FocusState.Pointer);
         var point = e.GetCurrentPoint(this).Position;
         var hit = Hit(point);
-        Selection = hit?.Id; if (hit is null) { Invalidate(); return; }
+        Selection = hit?.Id; if (hit is null) { RequestRender(); return; }
         if (Mode == EditorMode.Ladder && hit.Kind == "network-toggle" && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) ToggleNetwork(hit.Id);
-        Selected?.Invoke(hit.Id); Invalidate();
+        Selected?.Invoke(hit.Id); RequestRender();
         if (Mode == EditorMode.Hmi && HmiRuntime)
         {
             var item = Project.Screens.SelectMany(s => s.Objects).FirstOrDefault(o => o.Id == hit.Id);

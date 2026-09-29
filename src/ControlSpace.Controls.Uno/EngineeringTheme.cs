@@ -48,6 +48,33 @@ public static class EngineeringTheme
         button.Click += (_, _) => action(); AutomationProperties.SetName(button, text); if (automationId is not null) AutomationProperties.SetAutomationId(button, automationId);
         if (tip is not null) ToolTipService.SetToolTip(button, tip); return button;
     }
+    public static Border ToolSeparator() => new()
+    {
+        Width = 1, Height = 19, Margin = new Thickness(4, 3, 4, 3), Background = Brush("B7B9C2")
+    };
+    /// <summary>Compact engineering command chrome with full accessible captions.</summary>
+    public static Button ToolButton(string text, Action action, string id)
+    {
+        var button = Button(text, action, id, text);
+        button.BorderThickness = new Thickness(0); button.Background = Brush("E5E5EA");
+        button.Padding = new Thickness(6, 3, 6, 3); button.MinHeight = 25;
+        if (id is "new" or "open" or "save" or "undo" or "redo")
+        {
+            button.Content = Label(text.Trim()[..1], 15); button.Width = 29;
+        }
+        if (id is "add-contact" or "add-nc-contact")
+        {
+            var icon = new Canvas { Width = 28, Height = 17 };
+            void Line(double x1, double y1, double x2, double y2) => icon.Children.Add(new Microsoft.UI.Xaml.Shapes.Line
+            { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, Stroke = Brush("35465A"), StrokeThickness = 1.25 });
+            Line(0, 8.5, 8, 8.5); Line(20, 8.5, 28, 8.5); Line(9, 2, 9, 15); Line(19, 2, 19, 15);
+            if (id == "add-nc-contact") Line(6, 16, 22, 1);
+            button.Content = icon;
+            string caption = id == "add-contact" ? "Normally open contact (F9)" : "Normally closed contact (F10)";
+            ToolTipService.SetToolTip(button, caption); AutomationProperties.SetName(button, caption);
+        }
+        return button;
+    }
     public static Border Header(string caption, string color = "D7D7DC") => new()
     {
         Background = Brush(color), Padding = new Thickness(7, 3, 7, 3), BorderBrush = Brush("ABB6BE"), BorderThickness = new Thickness(0, 0, 0, 1), Child = Caption(caption, 12, bold: true)
