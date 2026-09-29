@@ -12,4 +12,5 @@
   <Project Path="tests/ControlSpace.Workbench.Tests/ControlSpace.Workbench.Tests.csproj" />
   <Project Path="tests/ControlSpace.Table.Tests/ControlSpace.Table.Tests.csproj" />
   <Project Path="tests/ControlSpace.Program.Tests/ControlSpace.Program.Tests.csproj" />
+  <Project Path="tests/ControlSpace.Navigation.Tests/ControlSpace.Navigation.Tests.csproj" />
 </Solution>
