@@ -1,0 +1,45 @@
+using ControlSpace.Core;
+using ControlSpace.Engineering;
+using ControlSpace.Languages;
+using ControlSpace.Storage;
+int passed = 0;
+void Test(string name, Action run) { run(); passed++; Console.WriteLine("PASS " + name); }
+void Check(bool value) { if (!value) throw new Exception("Assertion failed"); }
+void Reject(Action run) { try { run(); } catch (ArgumentException) { return; } catch (InvalidOperationException) { return; } throw new Exception("Expected rejection"); }
+Workspace New() => new(DemoProject.Create());
+void Apply(Workspace w, params TagCellEdit[] edits) => new TagTableEditor(w).Apply(edits, w.Project.Revision, w.Project.Id);
+Test("cell changes undo and redo once", () => { var w = New(); var name = w.Project.Tags[0].Name; Apply(w, new(name, TagColumn.Comment, "edited")); Check(w.Project.Tags[0].Comment == "edited"); w.Undo(); Check(!w.IsDirty); w.Redo(); Check(w.Project.Tags[0].Comment == "edited"); });
+Test("multi-cell paste is one transaction", () => { var w = New(); Apply(w, new(w.Project.Tags[0].Name, TagColumn.Comment, "one"), new(w.Project.Tags[1].Name, TagColumn.Comment, "two")); w.Undo(); Check(!w.IsDirty && !w.CanUndo); });
+Test("invalid batch rolls back every cell", () => { var w = New(); string before = ProjectStorage.Serialize(w.Project); Reject(() => Apply(w, new(w.Project.Tags[0].Name, TagColumn.Comment, "must not persist"), new(w.Project.Tags[1].Name, TagColumn.Address, "%M0.0"))); Check(ProjectStorage.Serialize(w.Project) == before && !w.CanUndo); });
+Test("type and width change atomically", () => { var w = New(); string name = new TagTableEditor(w).Add(); Apply(w, new(name, TagColumn.DataType, "REAL"), new(name, TagColumn.Address, "%MD500"), new(name, TagColumn.InitialValue, "1.25")); Check(w.Project.Tags.Last().Type == PlcType.Real && w.Project.Tags.Last().InitialValue == 1.25); });
+Test("retain roundtrip", () => { var w = New(); string name = w.Project.Tags[0].Name; Apply(w, new(name, TagColumn.Retain, "TRUE")); Check(ProjectStorage.Deserialize(ProjectStorage.Serialize(w.Project)).Tags[0].Retain); });
+Test("read-only monitor rejects paste", () => { var w = New(); Reject(() => Apply(w, new(w.Project.Tags[0].Name, TagColumn.MonitorValue, "1"))); Check(!w.IsDirty); });
+Test("reject stale revision", () => { var w = New(); var rev = w.Project.Revision; new TagTableEditor(w).Add(); Reject(() => new TagTableEditor(w).Apply([new(w.Project.Tags[0].Name, TagColumn.Comment, "stale")], rev, w.Project.Id)); });
+Test("reject different project with equal revision", () => { var w = New(); Reject(() => new TagTableEditor(w).Apply([], w.Project.Revision, "another")); });
+Test("no-op does not create history", () => { var w = New(); Apply(w, new(w.Project.Tags[0].Name, TagColumn.Name, w.Project.Tags[0].Name)); Check(!w.CanUndo && !w.IsDirty); });
+Test("unknown tag rejects", () => { var w = New(); Reject(() => Apply(w, new("absent", TagColumn.Comment, "x"))); Check(!w.IsDirty); });
+Test("duplicate names reject without mutation", () => { var w = New(); Reject(() => Apply(w, new(w.Project.Tags[0].Name, TagColumn.Name, w.Project.Tags[1].Name))); Check(!w.IsDirty); });
+Test("RUN prevents declaration edits and add", () => { var w = New(); Check(w.Compile().Success); w.Controller!.Run(); Reject(() => Apply(w, new(w.Project.Tags[0].Name, TagColumn.Comment, "x"))); Reject(() => new TagTableEditor(w).Add()); Check(!w.IsDirty); });
+Test("rename updates LAD and HMI and remains compilable", () => { var w = New(); Apply(w, new("Motor_Run", TagColumn.Name, "Drive_Enabled")); Check(w.Project.Screens.SelectMany(s => s.Objects).Any(o => o.Tag == "Drive_Enabled")); Check(w.Project.Blocks.SelectMany(b => b.Networks).Any(n => n.Output.Tag == "Drive_Enabled")); Check(ProjectCompiler.Compile(w.Project).Success); w.Undo(); Check(!w.IsDirty); });
+Test("simultaneous symbol swaps do not cascade", () => { var w = New(); var a = w.Project.Tags[0]; var b = w.Project.Tags[1]; Apply(w, new(a.Name, TagColumn.Name, b.Name), new(b.Name, TagColumn.Name, a.Name)); Check(w.Project.Tags[0].Address == a.Address && w.Project.Tags[0].Name == b.Name); Check(w.Project.Tags[1].Address == b.Address && w.Project.Tags[1].Name == a.Name); w.Undo(); Check(!w.IsDirty); });
+Test("case-only rename rewrites references", () => { var w = New(); Apply(w, new("Motor_Run", TagColumn.Name, "motor_run")); Check(w.Project.Blocks.SelectMany(b => b.Networks).Any(n => n.Output.Tag == "motor_run")); });
+Test("referenced LAD tag deletion rejects", () => { var w = New(); Reject(() => new TagTableEditor(w).Delete(["Motor_Run"])); Check(!w.IsDirty); });
+Test("SCL-only references prevent deletion", () => { var w = New(); string name = new TagTableEditor(w).Add(PlcType.Real); w.Edit("SCL reference", p => { var i = p.Blocks.FindIndex(b => b.Language == BlockLanguage.SCL); p.Blocks[i] = p.Blocks[i] with { Source = name + " := 5;" }; }); Reject(() => new TagTableEditor(w).Delete([name])); });
+Test("unused tag can be deleted and restored", () => { var w = New(); var e = new TagTableEditor(w); string name = e.Add(); e.Delete([name]); Check(w.Project.Tags.All(t => t.Name != name)); w.Undo(); Check(w.Project.Tags.Any(t => t.Name == name)); });
+Test("duplicate allocates distinct name/address", () => { var w = New(); var e = new TagTableEditor(w); string name = e.Add(duplicateName: "Motor_Run"); var copy = w.Project.Tags.Single(t => t.Name == name); Check(copy.Type == PlcType.Bool && copy.Name.StartsWith("Motor_Run_copy_") && copy.Address.StartsWith("%M")); Check(!ProjectValidator.Validate(w.Project).Any(d => d.Severity == Severity.Error)); });
+foreach (var type in Enum.GetValues<PlcType>()) Test("allocate nonoverlapping " + type, () => { var w = New(); var e = new TagTableEditor(w); for (int i = 0; i < 16; i++) e.Add(type); Check(!ProjectValidator.Validate(w.Project).Any(d => d.Severity == Severity.Error)); });
+Test("filter includes names addresses comments and types", () => { var tags = new[] { new PlcTag("One", PlcType.Bool, "%M1.0", Comment: "conveyor"), new PlcTag("Two", PlcType.Int, "%MW2") }; foreach (string query in new[] { "ONE", "%M1.0", "conveyor", "BOOL" }) Check(TagTableEditor.Query(tags, query).Count == 1); });
+Test("natural address and numeric value sorting", () => { PlcTag[] tags = [new("B", PlcType.Int, "%MW10", 10), new("A", PlcType.Int, "%MW2", 2)]; Check(TagTableEditor.Query(tags, "", TagColumn.Address)[0].Name == "A"); Check(TagTableEditor.Query(tags, "", TagColumn.InitialValue, true)[0].Name == "B"); });
+Test("queries do not reorder the model", () => { var w = New(); var names = w.Project.Tags.Select(t => t.Name).ToArray(); TagTableEditor.Query(w.Project.Tags, "", TagColumn.Name, true); Check(w.Project.Tags.Select(t => t.Name).SequenceEqual(names) && !w.IsDirty); });
+Test("viewport bounded for ten thousand rows", () => { var range = TagTableEditor.VisibleRange(10000, 200000, 720); Check(range.Count <= 33 && range.First > 8000); });
+Test("viewport empty and nonfinite boundaries", () => { Check(TagTableEditor.VisibleRange(0, 0, 800) == (0, 0)); Check(TagTableEditor.VisibleRange(10, double.NaN, double.PositiveInfinity).Count == 3); Check(TagTableEditor.VisibleRange(10, 99999, 800).Count == 0); });
+Test("quoted clipboard roundtrip", () => { string[][] rows = [["one", "tab\tline\r\nquote\""], ["", "tail"]]; var parsed = TableClipboard.Read(TableClipboard.Write(rows)); Check(parsed.Count == 2 && parsed[0][1] == rows[0][1] && parsed[1][0] == ""); });
+Test("clipboard supports native line endings", () => { foreach (string nl in new[] { "\n", "\r\n", "\r" }) Check(TableClipboard.Read("A\tB" + nl + "C\tD" + nl).Count == 2); });
+Test("clipboard trailing empty cells preserved", () => { var rows = TableClipboard.Read("A\t\r\nB\t"); Check(rows.Count == 2 && rows[1].Count == 2 && rows[1][1] == ""); });
+Test("clipboard malformed input rejected", () => { foreach (string text in new[] { "\"open", "\"closed\"bad", "one\ttwo\nthree", "un\"quoted" }) Reject(() => TableClipboard.Read(text)); });
+Test("clipboard resource bound", () => { Reject(() => TableClipboard.Read(new string('a', 1_000_001))); Reject(() => TableClipboard.Read(new string('a', 16385))); });
+Test("rename excludes comments longer names and numbers", () => { string source = "// X\r(* X *)\nX := X_2 + 1e3; \"X\" := X;"; var renamed = SymbolText.Rename(source, new Dictionary<string,string> { ["X"] = "Y", ["e3"] = "oops" }); Check(renamed == "// X\r(* X *)\nY := X_2 + 1e3; \"Y\" := Y;"); });
+Test("rename handles keyword identifiers", () => Check(SymbolText.Rename("X := X;", new Dictionary<string,string> { ["X"] = "IF" }) == "\"IF\" := \"IF\";"));
+Test("rename safe on incomplete draft comments", () => Check(SymbolText.Rename("X := 1; (* X", new Dictionary<string,string> { ["X"] = "Y" }) == "Y := 1; (* X"));
+Test("finite value parsing", () => { Check(TagTableEditor.ParseValue("T#123ms") == 123); Check(TagTableEditor.ParseValue("TRUE") == 1); foreach (string value in new[] { "NaN", "Infinity", "1,25", "1e999" }) Reject(() => TagTableEditor.ParseValue(value)); });
+Console.WriteLine($"Tag table tests: {passed} passed, 0 failed.");
