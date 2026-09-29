@@ -34,7 +34,7 @@ public sealed partial class WorkbenchView
                 for (int i = 0; i < count; i++) Visit(VisualTreeHelper.GetChild(node, i));
             }
             Visit(this);
-            var json = JsonSerializer.Serialize(new { controls, view = _view, documents = _documents.Documents, maximized = _maximized, layout = _layout, projectDrawer = _projectDrawer, taskDrawer = _taskDrawer, source = _source?.Text, blockSources = _workspace.Project.Blocks.ToDictionary(b => b.Id, b => b.Source), tagCount = _workspace.Project.Tags.Count, values = _workspace.Project.Tags.ToDictionary(t => t.Name, t => _workspace.Controller?.Read(t.Name) ?? t.InitialValue), state = _workspace.Controller?.State.ToString(), cycle = _workspace.Controller?.Cycle ?? 0, zoom = _canvas.Zoom, portal = _portal.Visibility == Visibility.Visible });
+            var json = JsonSerializer.Serialize(new { controls, view = _view, documents = _documents.Documents, maximized = _maximized, layout = _layout, projectDrawer = _projectDrawer, taskDrawer = _taskDrawer, source = _source?.Text, blockSources = _workspace.Project.Blocks.ToDictionary(b => b.Id, b => b.Source), tagCount = _workspace.Project.Tags.Count, tags = _workspace.Project.Tags.Take(100).ToArray(), tableRows = _table.RealizedRowCount, tableSelection = _table.ActiveTagName, tableStatus = _table.StatusText, values = _workspace.Project.Tags.Take(100).ToDictionary(t => t.Name, t => _workspace.Controller?.Read(t.Name) ?? t.InitialValue), state = _workspace.Controller?.State.ToString(), cycle = _workspace.Controller?.Cycle ?? 0, zoom = _canvas.Zoom, portal = _portal.Visibility == Visibility.Visible });
             JSHost.GlobalThis.SetProperty("controlSpaceVerificationJson", json);
         };
         _verificationTimer.Start();

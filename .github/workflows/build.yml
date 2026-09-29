@@ -25,6 +25,8 @@ jobs:
         run: dotnet run --project tests/ControlSpace.Tests -c Release -- --fixtures tests/fixtures
       - name: Workbench layout and editor session regressions
         run: dotnet run --project tests/ControlSpace.Workbench.Tests -c Release
+      - name: Transactional tag table regressions
+        run: dotnet run --project tests/ControlSpace.Table.Tests -c Release
       - name: JavaScript prototype engine regression tests
         run: npm test
       - name: Package reusable platform-neutral libraries
@@ -36,6 +38,14 @@ jobs:
         with:
           name: portable-packages
           path: artifacts/packages/*.nupkg
+      - name: Archive exact tested sources
+        if: always()
+        run: mkdir -p artifacts && git archive --format=zip -o artifacts/ControlSpace-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-snapshot
+          path: artifacts/ControlSpace-source.zip
   desktop:
     strategy:
       fail-fast: false

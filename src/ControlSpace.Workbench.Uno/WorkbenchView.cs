@@ -37,6 +37,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     {
         _files = files; RequestedTheme = ElementTheme.Light;
         AutomationProperties.SetName(this, "ControlSpace engineering workspace");
+        _table.Bind(_workspace);
         BuildShell();
         _workspace.Changed += WorkspaceChanged;
         _tree.OpenRequested += target => Safe(() => Navigate(target));
@@ -103,7 +104,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
             }
             else { _canvas.Mode = EditorMode.Ladder; _canvas.BlockId = block.Id; RestoreCanvasState(); _editor.Content = _canvas; }
         }
-        else if (_view is "tags" or "watch") { _table.SetTags(_workspace.Project.Tags, _workspace.Controller); _editor.Content = _table; }
+        else if (_view is "tags" or "watch") { _table.SetTags(_workspace.Project.Tags, _workspace.Controller, _view == "watch"); _editor.Content = _table; }
         else if (_view == "references") { _table.SetReferences(_workspace.CrossReferences()); _editor.Content = _table; }
         else if (_view == "portal") ShowPortal();
         else if (_view == "diagnostics") ShowDiagnostics();
@@ -114,6 +115,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     }
     private void CommitSource()
     {
+        if (!_table.TryCommitEdit()) throw new InvalidOperationException("Finish or cancel the invalid tag-table cell edit first.");
         if (_source is null || !_view.StartsWith("block:")) return;
         var source = _source.Text; string id = _view[6..]; var block = _workspace.Project.Blocks.Find(b => b.Id == id);
         if (block is null || block.Source == source) return;
@@ -204,12 +206,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
             network.Branches[0].Add(Instruction.Create(kind, p.Tags.First(t => number ? t.Type != PlcType.Bool : t.Type == PlcType.Bool).Name));
         });
     });
-    private void AddTag() => Safe(() => _workspace.Edit("Add tag", p =>
-    {
-        int number = 1; while (p.Tags.Any(t => t.Name == "Tag_" + number)) number++;
-        int byteAddress = 100; while (p.Tags.Any(t => t.Address.StartsWith("%M" + byteAddress + ".", StringComparison.OrdinalIgnoreCase))) byteAddress++;
-        p.Tags.Add(new("Tag_" + number, PlcType.Bool, "%M" + byteAddress + ".0", 0, "User tag"));
-    }));
+    private void AddTag() => Safe(() => { CommitSource(); Navigate("tags"); _table.AddTag(); });
     private void AddDevice() => Safe(() => _workspace.Edit("Add virtual device", p =>
     {
         int n = 10; while (p.Devices.Any(d => d.IpAddress == "192.168.0." + n)) n++;
@@ -304,11 +301,11 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         finally { _savingRecovery = false; }
     }
     private void About() => Message("ControlSpace 0.1.0 is an independent TIA Portal-style engineering preview, not Siemens software. Native .ap/.zap projects, S7 code generation and online protocols, WinCC runtimes, safety, motion, drives, certified timing, enterprise services and exact UI parity are not implemented. Never use this simulator to operate real machinery.");
-    private void Safe(Action action) { try { CaptureEditorState(); action(); } catch (Exception ex) { Message(ex.Message); } }
+    private void Safe(Action action) { try { if (!_table.TryCommitEdit()) return; CaptureEditorState(); action(); } catch (Exception ex) { Message(ex.Message); } }
     private void Message(string message) { SetInspector("Info"); _messages.Children.Clear(); var text = Label(message, 12, "924937"); text.TextWrapping = TextWrapping.Wrap; _messages.Children.Add(text); _status.Text = message; }
     public void Dispose() {
 #if __WASM__
         _verificationTimer?.Stop();
 #endif
- _scan.Stop(); _autosave.Stop(); _layoutTimer.Stop(); _workspace.Changed -= WorkspaceChanged; _canvas.Dispose(); }
+ _scan.Stop(); _autosave.Stop(); _layoutTimer.Stop(); _workspace.Changed -= WorkspaceChanged; _table.Unbind(); _canvas.Dispose(); }
 }
