@@ -13,7 +13,7 @@ public sealed record ScanSnapshot(long Cycle, double VirtualMilliseconds, double
 }
 
 /// <summary>Deterministic, in-process training runtime. Never connects to a PLC or physical output.</summary>
-public sealed class VirtualPlc
+public sealed partial class VirtualPlc
 {
     private sealed class InstructionState { public double Elapsed; public bool Previous, Active; }
     private readonly Dictionary<string, InstructionState> _memory = new(StringComparer.Ordinal);
@@ -47,7 +47,7 @@ public sealed class VirtualPlc
     public VirtualPlc(CompiledProgram program)
     {
         _program = program; _values = program.Project.Tags.Select(t => t.InitialValue).ToArray();
-        _working = new double[_values.Length]; ReadView = new LiveView(this);
+        _working = new double[_values.Length]; ReadView = new LiveView(this); InitializeChangeTracking();
         for (int i = 0; i < _values.Length; i++) if (PlcValues.IsInput(program.Project.Tags[i].Address)) _inputs[i] = _values[i];
         ClearOutputs();
     }
@@ -95,11 +95,11 @@ public sealed class VirtualPlc
         double milliseconds = period.TotalMilliseconds;
         if (!double.IsFinite(milliseconds) || milliseconds != Math.Truncate(milliseconds) || milliseconds is <= 0 or > 1000) throw new ArgumentOutOfRangeException(nameof(period), "Scan period must be an integer in 1..1000 ms.");
         if (State == ControllerState.Faulted || State != ControllerState.Running && !singleStep) return false;
-        long start = Stopwatch.GetTimestamp();
+        long start = Stopwatch.GetTimestamp(); BeginTrackedScan();
         var working = _working; Array.Copy(_values, working, _values.Length);
         var flow = _nextFlow; flow.Clear();
-        foreach (var (slot, value) in _inputs) working[slot] = value;
-        foreach (var (slot, value) in _forces) working[slot] = value;
+        foreach (var (slot, value) in _inputs) { working[slot] = value; TrackWrite(slot); }
+        foreach (var (slot, value) in _forces) { working[slot] = value; TrackWrite(slot); }
         try
         {
             for (int bi = 0; bi < _program.Blocks.Count; bi++)
@@ -125,16 +125,13 @@ public sealed class VirtualPlc
                 }
                 ExecuteStatements(block.Statements, working);
             }
-            foreach (var (slot, value) in _forces) working[slot] = value;
+            foreach (var (slot, value) in _forces) { working[slot] = value; TrackWrite(slot); }
             // Keep the complete range/type validation, but put its non-throwing hot
             // path in the loop rather than calling the diagnostic builder per tag.
             var tags = CollectionsMarshal.AsSpan(_program.Project.Tags);
             for (int slot = 0; slot < working.Length; slot++)
                 if (!PlcValues.IsValid(tags[slot].Type, working[slot])) ValidateValue(slot, working[slot]);
-            // All values have just been validated as finite. Byte comparison is vectorized;
-            // double.Equals-based sequence comparison can be scalar. Signed-zero changes
-            // conservatively repaint, which is harmless; no changed value can be missed.
-            bool changed = !MemoryMarshal.AsBytes(_values.AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(working.AsSpan())) || _flow.Count != flow.Count;
+            bool changed = ValuesChanged(working) || _flow.Count != flow.Count;
             if (!changed) foreach (var item in flow) if (!_flow.TryGetValue(item.Key, out bool old) || old != item.Value) { changed = true; break; }
             if (changed) VisualVersion++;
             _working = _values; _values = working; _nextFlow = _flow; _flow = flow; Cycle++; VirtualMilliseconds += milliseconds;
@@ -170,6 +167,9 @@ public sealed class VirtualPlc
     }
     private void ExecuteOutput(CompiledOutput output, bool power, double period, double[] values)
     {
+        TrackWrite(output.Slot);
+        if (output.AuxiliarySlot >= 0 && output.Kind is InstructionKind.TimerOn or InstructionKind.TimerOff or InstructionKind.Pulse)
+            TrackWrite(output.AuxiliarySlot);
         var state = Memory(output.Id);
         switch (output.Kind)
         {
@@ -208,8 +208,10 @@ public sealed class VirtualPlc
         for (int i = 0; i < statements.Count; i++) switch (statements[i])
         {
             case AssignmentStatement assignment:
+                TrackWrite(assignment.Slot); _unknownExpression |= !KnownPure(assignment.Value);
                 double value = assignment.Value.Evaluate(values); ValidateValue(assignment.Slot, value); values[assignment.Slot] = value; break;
             case IfStatement conditional:
+                _unknownExpression |= !KnownPure(conditional.Condition);
                 ExecuteStatements(conditional.Condition.Evaluate(values) != 0 ? conditional.Then : conditional.Else, values); break;
         }
     }
