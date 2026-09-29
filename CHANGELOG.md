@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — performance and rendering quality
+
+- Removed JSON serialization from dirty/no-op checks and per-bit string allocation from address overlap validation.
+- Added reusable scan buffers and a read-only live renderer view; retained full value validation, rollback and detached history snapshots.
+- Bounded retained trace payload and cached text/tag lookups; culled offscreen ladder contacts and batched design-grid drawing.
+- Coalesced canvas requests, skipped unchanged or hidden-scene redraws and unchanged recovery serialization, and retained editor/palette/toolbar/tab controls.
+- Refined compact command chrome, vector contact icons, ladder spacing and operand/address alignment.
+- Added same-harness baseline benchmarks, allocation regressions and real Uno browser performance-mechanism checks. See [measurement scope](docs/performance.md); no overall or TIA-relative speedup is implied.
+
 ## Unreleased — program and LAD authoring
 
 - Added a reusable program directory and transactional LAD/SCL block creation, properties, duplication, deletion and simulator scan-order commands. Copies use fresh graph identifiers and start offline.

@@ -124,6 +124,8 @@ PR builds cannot deploy Pages. No release tag is created by ordinary builds. [De
 
 ## Rendering and performance
 
+The current performance pass removes full-project serialization from dirty/no-op checks, uses read-only live controller views for drawing, culls offscreen ladder contacts, caches fitted text and batches design grids. The workbench coalesces invalidations, retains editor chrome and skips unchanged recovery writes and static/hidden canvas redraws. [Performance guide and reproducible benchmark scope](docs/performance.md) describes the same-harness comparison against a pinned baseline, allocation gates and compiled Uno browser mechanism tests. These are not original TIA Portal or physical-GPU measurements.
+
 The Uno editor draws into the host canvas through `SKCanvasElement`, avoiding a separate application-owned CPU bitmap upload path. Actual GPU acceleration depends on the host configuration; there is no independent direct WebGPU backend in the C# renderer. The separate prototype uses WebGPU geometry when available and Canvas 2D text/fallback.
 
 The renderer culls offscreen LAD networks and retains drawing resources. Parser, undo and trace storage are bounded. Project-tree reconstruction is skipped when the project snapshot is unchanged; layout writes are debounced. None of these mechanisms establishes physical-GPU performance, hard-real-time timing or production-scale qualification.

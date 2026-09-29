@@ -126,7 +126,11 @@ public sealed class VirtualPlc
                 ExecuteStatements(block.Statements, working);
             }
             foreach (var (slot, value) in _forces) working[slot] = value;
-            for (int slot = 0; slot < working.Length; slot++) ValidateValue(slot, working[slot]);
+            // Keep the complete range/type validation, but put its non-throwing hot
+            // path in the loop rather than calling the diagnostic builder per tag.
+            var tags = CollectionsMarshal.AsSpan(_program.Project.Tags);
+            for (int slot = 0; slot < working.Length; slot++)
+                if (!PlcValues.IsValid(tags[slot].Type, working[slot])) ValidateValue(slot, working[slot]);
             // All values have just been validated as finite. Byte comparison is vectorized;
             // double.Equals-based sequence comparison can be scalar. Signed-zero changes
             // conservatively repaint, which is harmless; no changed value can be missed.
