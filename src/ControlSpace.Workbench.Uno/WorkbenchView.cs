@@ -37,6 +37,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     {
         _files = files; RequestedTheme = ElementTheme.Light;
         AutomationProperties.SetName(this, "ControlSpace engineering workspace");
+        _table.Bind(_workspace);
         BuildShell();
         _workspace.Changed += WorkspaceChanged;
         _tree.OpenRequested += target => Safe(() => Navigate(target));
@@ -103,7 +104,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
             }
             else { _canvas.Mode = EditorMode.Ladder; _canvas.BlockId = block.Id; RestoreCanvasState(); _editor.Content = _canvas; }
         }
-        else if (_view is "tags" or "watch") { _table.SetTags(_workspace.Project.Tags, _workspace.Controller); _editor.Content = _table; }
+        else if (_view is "tags" or "watch") { _table.SetTags(_workspace.Project.Tags, _workspace.Controller, _view == "watch"); _editor.Content = _table; }
         else if (_view == "references") { _table.SetReferences(_workspace.CrossReferences()); _editor.Content = _table; }
         else if (_view == "portal") ShowPortal();
         else if (_view == "diagnostics") ShowDiagnostics();
@@ -114,6 +115,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     }
     private void CommitSource()
     {
+        if (!_table.TryCommitEdit()) throw new InvalidOperationException("Finish or cancel the invalid tag-table cell edit first.");
         if (_source is null || !_view.StartsWith("block:")) return;
         var source = _source.Text; string id = _view[6..]; var block = _workspace.Project.Blocks.Find(b => b.Id == id);
         if (block is null || block.Source == source) return;

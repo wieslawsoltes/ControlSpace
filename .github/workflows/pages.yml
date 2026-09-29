@@ -32,6 +32,8 @@ jobs:
         run: dotnet run --project tests/ControlSpace.Tests -c Release -- --fixtures tests/fixtures
       - name: Workbench layout and editor session regressions
         run: dotnet run --project tests/ControlSpace.Workbench.Tests -c Release
+      - name: Transactional tag table regressions
+        run: dotnet run --project tests/ControlSpace.Table.Tests -c Release
       - name: Publish the real Uno Skia WebAssembly app
         run: |
           dotnet publish src/ControlSpace.App -c Release -f net10.0-browserwasm \
@@ -53,6 +55,7 @@ jobs:
           ln -s "$PWD/artifacts/site" artifacts/serve/ControlSpace
           python -m http.server 4173 --directory artifacts/serve > artifacts/server.log 2>&1 &
           python tests/browser/uno_smoke.py http://127.0.0.1:4173/ControlSpace/
+          python tests/browser/tag_table.py http://127.0.0.1:4173/ControlSpace/
       - name: Stage genuine Uno UI previews
         run: |
           mkdir -p artifacts/site/docs/uno
