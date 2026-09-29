@@ -12,24 +12,26 @@ public sealed class Workspace
 {
     private readonly List<HistoryItem> _undo = [], _redo = [];
     private readonly int _historyLimit;
-    private string _saved;
+    private ControlProject _saved;
+    private bool _isDirty;
     public ControlProject Project { get; private set; }
     public VirtualPlc? Controller { get; private set; }
     public CompilationResult? Compilation { get; private set; }
     public bool CanUndo => _undo.Count > 0;
     public bool CanRedo => _redo.Count > 0;
-    public bool IsDirty => ProjectStorage.Serialize(Project) != _saved;
+    /// <summary>Constant-time saved-state query. Changes must use Edit/Load/Undo/Redo.</summary>
+    public bool IsDirty => _isDirty;
     public event EventHandler? Changed;
     public Workspace(ControlProject project, int historyLimit = 80)
     {
         if (historyLimit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(historyLimit));
-        _historyLimit = historyLimit; Project = ProjectStorage.Deserialize(ProjectStorage.Serialize(project)); _saved = ProjectStorage.Serialize(Project);
+        _historyLimit = historyLimit; Project = ProjectStorage.Deserialize(ProjectStorage.Serialize(project)); _saved = ProjectSnapshot.Clone(Project);
     }
     public void Edit(string description, Action<ControlProject> change)
     {
         if (Controller?.State == ControllerState.Running) throw new InvalidOperationException("Stop simulation before changing the program.");
         var before = ProjectSnapshot.Clone(Project); var draft = ProjectSnapshot.Clone(Project); change(draft);
-        if (ProjectStorage.Serialize(draft) == ProjectStorage.Serialize(before)) return;
+        if (ProjectSnapshot.ContentEquals(draft, before)) return;
         draft = draft with { Revision = before.Revision + 1 };
         var validation = ProjectValidator.Validate(draft);
         if (validation.Any(d => d.Severity == Severity.Error)) throw new InvalidOperationException(string.Join("\n", validation.Where(d => d.Severity == Severity.Error).Take(10).Select(d => d.Message)));
@@ -55,14 +57,21 @@ public sealed class Workspace
     }
     public void Load(ControlProject project)
     {
-        var next = ProjectStorage.Deserialize(ProjectStorage.Serialize(project)); Controller?.Stop(); Project = next; _undo.Clear(); _redo.Clear(); _saved = ProjectStorage.Serialize(next); Invalidate();
+        var next = ProjectStorage.Deserialize(ProjectStorage.Serialize(project)); Controller?.Stop(); Project = next; _undo.Clear(); _redo.Clear(); _saved = ProjectSnapshot.Clone(next); Invalidate();
     }
-    public void MarkSaved() { _saved = ProjectStorage.Serialize(Project); Changed?.Invoke(this, EventArgs.Empty); }
+    public void MarkSaved() => MarkSaved(Project);
+    /// <summary>Mark the actual exported snapshot, not a possibly newer document after an asynchronous save.</summary>
+    public void MarkSaved(ControlProject exported)
+    {
+        ArgumentNullException.ThrowIfNull(exported);
+        _saved = ProjectSnapshot.Clone(exported); _isDirty = !ProjectSnapshot.ContentEquals(Project, _saved);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
     public CompilationResult Compile()
     {
         Controller?.Stop(); Compilation = ProjectCompiler.Compile(Project); Controller = Compilation.Success ? new VirtualPlc(Compilation.Program!) : null; Changed?.Invoke(this, EventArgs.Empty); return Compilation;
     }
-    private void Invalidate() { Controller?.Stop(); Controller = null; Compilation = null; Changed?.Invoke(this, EventArgs.Empty); }
+    private void Invalidate() { _isDirty = !ProjectSnapshot.ContentEquals(Project, _saved); Controller?.Stop(); Controller = null; Compilation = null; Changed?.Invoke(this, EventArgs.Empty); }
     public void RenameTag(string oldName, string newName)
     {
         Edit("Rename tag", p =>

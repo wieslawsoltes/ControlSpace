@@ -29,6 +29,8 @@ jobs:
         run: dotnet run --project tests/ControlSpace.Table.Tests -c Release
       - name: Program and ladder authoring regressions
         run: dotnet run --project tests/ControlSpace.Program.Tests -c Release
+      - name: Allocation, rendering and snapshot regression tests
+        run: dotnet run --project tests/ControlSpace.Performance.Tests -c Release
       - name: JavaScript prototype engine regression tests
         run: npm test
       - name: Package reusable platform-neutral libraries
@@ -87,3 +89,31 @@ jobs:
             artifacts/browser-report.json
             artifacts/ControlSpace-prototype.html
             docs/images/*.png
+
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compare identical benchmark harness against pinned baseline
+        env:
+          BASELINE: 4ec2bd939d9a712ce7e87e1e248f339d256c25c7
+        run: |
+          mkdir -p artifacts/performance
+          git worktree add --detach "$RUNNER_TEMP/controlspace-baseline" "$BASELINE"
+          mkdir -p "$RUNNER_TEMP/controlspace-baseline/tools"
+          cp -R tools/ControlSpace.Benchmarks "$RUNNER_TEMP/controlspace-baseline/tools/"
+          dotnet run --project "$RUNNER_TEMP/controlspace-baseline/tools/ControlSpace.Benchmarks" -c Release -- "$BASELINE" "$PWD/artifacts/performance/before.json"
+          dotnet run --project tools/ControlSpace.Benchmarks -c Release -- "$GITHUB_SHA" "$PWD/artifacts/performance/after.json"
+          python tools/compare-benchmarks.py artifacts/performance/before.json artifacts/performance/after.json artifacts/performance/comparison.md
+          cat artifacts/performance/comparison.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-comparison
+          path: artifacts/performance/

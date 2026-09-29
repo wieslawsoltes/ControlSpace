@@ -4,7 +4,12 @@ using ControlSpace.Languages;
 namespace ControlSpace.Simulation;
 
 public enum ControllerState { Stopped, Running, Faulted }
-public sealed record ScanSnapshot(long Cycle, double VirtualMilliseconds, double CpuMilliseconds, ControllerState State, double[] Values, IReadOnlyDictionary<string, bool> Flow, string? Fault);
+public sealed record ScanSnapshot(long Cycle, double VirtualMilliseconds, double CpuMilliseconds, ControllerState State, double[] Values, IReadOnlyDictionary<string, bool> Flow, string? Fault) : IScanReadView
+{
+    public int ValueCount => Values.Length;
+    public double ReadValue(int slot) => Values[slot];
+    public bool TryGetFlow(string id, out bool active) => Flow.TryGetValue(id, out active);
+}
 
 /// <summary>Deterministic, in-process training runtime. Never connects to a PLC or physical output.</summary>
 public sealed class VirtualPlc
@@ -14,7 +19,21 @@ public sealed class VirtualPlc
     private readonly Dictionary<int, double> _inputs = [];
     private readonly Dictionary<int, double> _forces = [];
     private readonly CompiledProgram _program;
-    private double[] _values;
+    private double[] _values, _working;
+    private Dictionary<string, bool> _nextFlow = new(StringComparer.Ordinal);
+    private sealed class LiveView(VirtualPlc owner) : IScanReadView
+    {
+        public long Cycle => owner.Cycle;
+        public ControllerState State => owner.State;
+        public int ValueCount => owner._values.Length;
+        public double ReadValue(int slot) => owner._values[slot];
+        public bool TryGetFlow(string id, out bool active) => owner._flow.TryGetValue(id, out active);
+    }
+    public IScanReadView ReadView { get; }
+    /// <summary>Changes only when displayed values, power flow or operating state changes.</summary>
+    public long VisualVersion { get; private set; }
+    public long SnapshotCopies { get; private set; }
+    public bool TraceEnabled { get; set; } = true;
     private Dictionary<string, bool> _flow = [];
     public ControllerState State { get; private set; }
     public string? Fault { get; private set; }
@@ -22,22 +41,27 @@ public sealed class VirtualPlc
     public double VirtualMilliseconds { get; private set; }
     public double LastCpuMilliseconds { get; private set; }
     public CompiledProgram Program => _program;
-    public TraceBuffer Trace { get; } = new(2048);
+    public TraceBuffer Trace { get; } = new(2048, 32L * 1024 * 1024);
     public IReadOnlyDictionary<int, double> Forces => _forces;
     public VirtualPlc(CompiledProgram program)
     {
         _program = program; _values = program.Project.Tags.Select(t => t.InitialValue).ToArray();
+        _working = new double[_values.Length]; ReadView = new LiveView(this);
         for (int i = 0; i < _values.Length; i++) if (PlcValues.IsInput(program.Project.Tags[i].Address)) _inputs[i] = _values[i];
         ClearOutputs();
     }
     public int FindSlot(string name) => _program.Symbols.TryGetValue(name, out int slot) ? slot : throw new ArgumentException("Unknown tag: " + name, nameof(name));
     public double Read(string name) => _values[FindSlot(name)];
-    public ScanSnapshot Snapshot() => new(Cycle, VirtualMilliseconds, LastCpuMilliseconds, State, (double[])_values.Clone(), new Dictionary<string, bool>(_flow), Fault);
+    public ScanSnapshot Snapshot()
+    {
+        SnapshotCopies++;
+        return new(Cycle, VirtualMilliseconds, LastCpuMilliseconds, State, (double[])_values.Clone(), new Dictionary<string, bool>(_flow), Fault);
+    }
     public void SetInput(string name, double value)
     {
         int slot = FindSlot(name); var tag = _program.Project.Tags[slot];
         if (!PlcValues.IsInput(tag.Address)) throw new InvalidOperationException("Only %I tags can be written through SetInput.");
-        ValidateValue(slot, value); _inputs[slot] = value; _values[slot] = value;
+        ValidateValue(slot, value); _inputs[slot] = value; if (_values[slot] != value) VisualVersion++; _values[slot] = value;
     }
     public void Force(string name, double value)
     {
@@ -48,11 +72,11 @@ public sealed class VirtualPlc
     public void Run()
     {
         if (State == ControllerState.Faulted) throw new InvalidOperationException("Reset the virtual controller before restarting after a fault.");
-        State = ControllerState.Running;
+        if (State != ControllerState.Running) VisualVersion++; State = ControllerState.Running;
     }
     public void Stop()
     {
-        if (State != ControllerState.Faulted) State = ControllerState.Stopped; _forces.Clear(); _memory.Clear(); _flow.Clear(); ClearOutputs();
+        if (State != ControllerState.Faulted) State = ControllerState.Stopped; _forces.Clear(); _memory.Clear(); _flow.Clear(); ClearOutputs(); VisualVersion++;
     }
     public void Reset(bool retain = false)
     {
@@ -71,7 +95,8 @@ public sealed class VirtualPlc
         if (!double.IsFinite(milliseconds) || milliseconds != Math.Truncate(milliseconds) || milliseconds is <= 0 or > 1000) throw new ArgumentOutOfRangeException(nameof(period), "Scan period must be an integer in 1..1000 ms.");
         if (State == ControllerState.Faulted || State != ControllerState.Running && !singleStep) return false;
         long start = Stopwatch.GetTimestamp();
-        var working = (double[])_values.Clone(); var flow = new Dictionary<string, bool>(StringComparer.Ordinal);
+        var working = _working; Array.Copy(_values, working, _values.Length);
+        var flow = _nextFlow; flow.Clear();
         foreach (var (slot, value) in _inputs) working[slot] = value;
         foreach (var (slot, value) in _forces) working[slot] = value;
         try
@@ -97,15 +122,18 @@ public sealed class VirtualPlc
             }
             foreach (var (slot, value) in _forces) working[slot] = value;
             for (int slot = 0; slot < working.Length; slot++) ValidateValue(slot, working[slot]);
-            _values = working; _flow = flow; Cycle++; VirtualMilliseconds += milliseconds;
+            bool changed = !_values.AsSpan().SequenceEqual(working) || _flow.Count != flow.Count;
+            if (!changed) foreach (var item in flow) if (!_flow.TryGetValue(item.Key, out bool old) || old != item.Value) { changed = true; break; }
+            if (changed) VisualVersion++;
+            _working = _values; _values = working; _nextFlow = _flow; _flow = flow; Cycle++; VirtualMilliseconds += milliseconds;
             LastCpuMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-            Trace.Add(new(Cycle, VirtualMilliseconds, LastCpuMilliseconds, State, (double[])_values.Clone(), new Dictionary<string, bool>(_flow), null));
+            if (TraceEnabled) Trace.Add(new(Cycle, VirtualMilliseconds, LastCpuMilliseconds, State, (double[])_values.Clone(), new Dictionary<string, bool>(_flow), null));
             return true;
         }
         catch (Exception ex) when (ex is ArithmeticException or InvalidOperationException or ArgumentException)
         {
             // No partial scan is committed. Physical-style outputs are forced to zero.
-            State = ControllerState.Faulted; Fault = ex.Message; _forces.Clear(); _memory.Clear(); _flow.Clear(); ClearOutputs();
+            VisualVersion++; State = ControllerState.Faulted; Fault = ex.Message; _forces.Clear(); _memory.Clear(); _flow.Clear(); ClearOutputs();
             LastCpuMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds; return false;
         }
     }
