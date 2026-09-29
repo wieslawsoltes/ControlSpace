@@ -218,12 +218,28 @@ public sealed partial class WorkbenchView
     private string _instructionDragState = "idle";
     private void ConfigureInstructionDrag(Button button, InstructionKind kind)
     {
-        PaletteDragSource.Attach(button, e =>
-        {
-            _instructionDragProject = _workspace.Project; _instructionDragState = "started:" + kind;
-            e.Data.Properties["ControlSpace.Instruction"] = kind.ToString(); e.Data.RequestedOperation = DataPackageOperation.Copy;
-        }, ex => { _instructionDragState = "error:" + ex.Message; Message("Instruction drag failed: " + ex.Message); });
-        button.DropCompleted += (_, e) => { _instructionDragState = "completed:" + e.DropResult; _instructionDragProject = null; };
+        Point CanvasPoint(Point point) => button.TransformToVisual(_canvas).TransformPoint(point);
+        PaletteDragSource.Attach(button,
+            () => ApplyLadderInstruction(kind),
+            () => { _instructionDragProject = _workspace.Project; _instructionDragState = "started:" + kind; },
+            point =>
+            {
+                if (_instructionDragProject is not null && _editor.Content == _graphics && _body.Visibility == Visibility.Visible)
+                    _canvas.PreviewInstructionDrop(kind, CanvasPoint(point), _instructionDragProject);
+                else _canvas.ClearInstructionDropPreview();
+            },
+            point =>
+            {
+                var expected = _instructionDragProject;
+                string? target = expected is not null && _editor.Content == _graphics && _body.Visibility == Visibility.Visible
+                    ? _canvas.PreviewInstructionDrop(kind, CanvasPoint(point), expected) : null;
+                _canvas.ClearInstructionDropPreview();
+                if (target is not null) ApplyLadderInstruction(kind, target, expected);
+                _instructionDragState = target is null || ReferenceEquals(expected, _workspace.Project) ? "completed:None" : "completed:Copy";
+                _instructionDragProject = null;
+            },
+            () => { _instructionDragState = "cancelled"; _instructionDragProject = null; _canvas.ClearInstructionDropPreview(); },
+            ex => { _instructionDragState = "error:" + ex.Message; Message("Instruction drag failed: " + ex.Message); });
         ToolTipService.SetToolTip(button, "Click to insert at selection, or drag onto a LAD network.");
     }
 }

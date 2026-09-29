@@ -108,11 +108,29 @@ async def main():
             await wait("window.controlSpaceVerification.instructionDrag.startsWith('started:')")
             await page.wait_for_timeout(300)
             await page.mouse.move(target['x']+target['width']/2,target['y']+target['height']/2,steps=15)
-            await page.wait_for_timeout(400); await page.mouse.up()
+            await wait('window.controlSpaceVerification.instructionDropTarget!==null')
+            await page.screenshot(path=str(args.output/'uno-instruction-drag.png'))
+            await page.mouse.up()
             await wait('window.controlSpaceVerification.ladderNetworks[0].Branches[0].length===4')
             await click('undo'); await wait('window.controlSpaceVerification.ladderNetworks[0].Branches[0].length===3')
             await fill('task-search','')
-            passed('native palette drag inserts at the dropped contact and is undoable')
+            passed('captured palette drag previews the target and commits one undoable insertion')
+            before=(await state())['revision']
+            source=await bounds('palette-Normally open contact')
+            for cancel in [True, False]:
+                await page.mouse.move(source['x']+source['width']/2,source['y']+source['height']/2)
+                await page.mouse.down(); await page.wait_for_timeout(100)
+                await page.mouse.move(source['x']-30,source['y']+12,steps=6)
+                await wait("window.controlSpaceVerification.instructionDrag.startsWith('started:')")
+                if cancel:
+                    await page.keyboard.press('Escape')
+                    await wait("window.controlSpaceVerification.instructionDrag==='cancelled'")
+                else:
+                    await page.mouse.move(10,10,steps=8)
+                await page.mouse.up(); await page.wait_for_timeout(300)
+                assert (await state())['revision']==before, 'Cancelled or outside drag changed the project'
+                assert (await state())['instructionDropTarget'] is None
+            passed('Escape and outside drops leave the model and undo history unchanged')
             await hit(selected); await page.keyboard.press('Shift+F8')
             await wait('window.controlSpaceVerification.ladderNetworks[0].Branches.length===2')
             await click('branch-delete'); await wait('window.controlSpaceVerification.ladderNetworks[0].Branches.length===1')

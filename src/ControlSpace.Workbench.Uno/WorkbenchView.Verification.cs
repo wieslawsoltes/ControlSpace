@@ -43,7 +43,7 @@ public sealed partial class WorkbenchView
                 ladderNetworks = _workspace.Project.Blocks.FirstOrDefault(b => "block:" + b.Id == _view)?.Networks.Take(100).ToArray(),
                 ladderSelection = _selection, ladderCollapsed = _canvas.CollapsedNetworks.ToArray(), ladderWidth = _canvas.ContentWidth,
                 ladderScroll = _canvas.ScrollOffset, ladderHorizontal = _canvas.HorizontalOffset, ladderFont = _canvas.RendererFont,
-                instructionDrag = _instructionDragState, dialogOpen = _programDialog is not null, dialogError = _programErrorText,
+                instructionDrag = _instructionDragState, instructionDropTarget = _canvas.InstructionDropTarget, dialogOpen = _programDialog is not null, dialogError = _programErrorText,
                 view = _view, documents = _documents.Documents, maximized = _maximized, layout = _layout, projectDrawer = _projectDrawer, taskDrawer = _taskDrawer, source = _source?.Text, blockSources = _workspace.Project.Blocks.ToDictionary(b => b.Id, b => b.Source), tagCount = _workspace.Project.Tags.Count, tags = _workspace.Project.Tags.Take(100).ToArray(), tableRows = _table.RealizedRowCount, tableSelection = _table.ActiveTagName, tableStatus = _table.StatusText, values = _workspace.Project.Tags.Take(100).ToDictionary(t => t.Name, t => _workspace.Controller?.Read(t.Name) ?? t.InitialValue), state = _workspace.Controller?.State.ToString(), cycle = _workspace.Controller?.Cycle ?? 0, zoom = _canvas.Zoom, portal = _portal.Visibility == Visibility.Visible });
             JSHost.GlobalThis.SetProperty("controlSpaceVerificationJson", json);
         };

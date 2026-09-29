@@ -107,6 +107,34 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         if (Mode == EditorMode.Ladder) { x = x / Zoom + HorizontalOffset; y = y / Zoom + ScrollOffset; }
         return _hits.LastOrDefault(h => h.Bounds.Contains(x, y));
     }
+    private HitRegion? _instructionDropPreview;
+    private readonly SKPaint _dropPaint = new() { Color = SKColor.Parse("#397EC3"), Style = SKPaintStyle.Stroke, StrokeWidth = 2, IsAntialias = true };
+    public string? InstructionDropTarget => _instructionDropPreview?.Id;
+    /// <summary>Validate a local palette drop against the original snapshot and current viewport.
+    /// No project edit happens until the host commits the accepted drop.</summary>
+    public string? PreviewInstructionDrop(InstructionKind kind, Point point, ControlProject expected)
+    {
+        HitRegion? hit = null;
+        if (!_disposed && IsLoaded && Mode == EditorMode.Ladder && Controller?.State != ControllerState.Running &&
+            ReferenceEquals(expected, Project) && Enum.IsDefined(kind) && Project.Tags.Any(t => LadderInstructions.Accepts(kind, t)) &&
+            point.X >= 0 && point.Y >= 0 && point.X < ActualWidth && point.Y < ActualHeight)
+            hit = Hit(point);
+        if (_instructionDropPreview != hit) { _instructionDropPreview = hit; Invalidate(); }
+        return hit?.Id;
+    }
+    public void ClearInstructionDropPreview()
+    {
+        if (_instructionDropPreview is null) return;
+        _instructionDropPreview = null; Invalidate();
+    }
+    private void DrawInstructionDropPreview(SKCanvas canvas)
+    {
+        if (_instructionDropPreview is not HitRegion hit || Mode != EditorMode.Ladder) return;
+        var b = hit.Bounds;
+        float x = (float)(b.X - HorizontalOffset) * Zoom, y = (float)(b.Y - ScrollOffset) * Zoom;
+        canvas.DrawRect(x + 1, y + 1, (float)b.Width * Zoom - 2, (float)b.Height * Zoom - 2, _dropPaint);
+        if (hit.Kind == "instruction") canvas.DrawLine(x + (float)b.Width * Zoom, y, x + (float)b.Width * Zoom, y + (float)b.Height * Zoom, _dropPaint);
+    }
     private async Task LoadFontsAsync()
     {
         if (_fontLoading || _disposed) return; _fontLoading = true;
@@ -142,10 +170,10 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         RightTapped += (_, e) => { if (Mode == EditorMode.Ladder && Hit(e.GetPosition(this)) is HitRegion hit) { Selection = hit.Id; Selected?.Invoke(hit.Id); ContextMenuRequested?.Invoke(hit.Id, e.GetPosition(this)); e.Handled = true; } };
         KeyDown += LadderKey;
         AllowDrop = true;
-        DragOver += (_, e) => { if (Mode == EditorMode.Ladder && e.DataView.Properties.TryGetValue("ControlSpace.Instruction", out var value) && value is string text && Enum.TryParse<InstructionKind>(text, out var kind) && Enum.IsDefined(kind)) { e.AcceptedOperation = DataPackageOperation.Copy; e.Handled = true; } };
+        DragOver += (_, e) => { if (Mode == EditorMode.Ladder && Controller?.State != ControllerState.Running && e.DataView.Properties.TryGetValue("ControlSpace.Instruction", out var value) && value is string text && Enum.TryParse<InstructionKind>(text, out var kind) && Enum.IsDefined(kind)) { e.AcceptedOperation = DataPackageOperation.Copy; e.Handled = true; } };
         Drop += (_, e) =>
         {
-            if (Mode != EditorMode.Ladder || !e.DataView.Properties.TryGetValue("ControlSpace.Instruction", out var value) || value is not string text || !Enum.TryParse<InstructionKind>(text, out var kind) || !Enum.IsDefined(kind)) return;
+            if (Mode != EditorMode.Ladder || Controller?.State == ControllerState.Running || !e.DataView.Properties.TryGetValue("ControlSpace.Instruction", out var value) || value is not string text || !Enum.TryParse<InstructionKind>(text, out var kind) || !Enum.IsDefined(kind)) return;
             var hit = Hit(e.GetPosition(this));
             if (hit is not null) InstructionDropped?.Invoke(kind, hit.Id, Project); e.Handled = true;
         };
@@ -169,6 +197,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
                 break;
             case EditorMode.Trace: _renderer.Trace(canvas, width, height, Controller?.Trace.Read() ?? [], Project.Tags); break;
         }
+        DrawInstructionDropPreview(canvas);
         _hits = result?.Hits ?? []; _contentHeight = result?.ContentHeight ?? height;
         var metrics = (ContentWidth, ContentHeight, ScrollOffset, HorizontalOffset, Zoom, ActualWidth, ActualHeight, Mode);
         if (metrics != _lastMetrics) { _lastMetrics = metrics; DispatcherQueue.TryEnqueue(() => { if (!_disposed) ViewportChanged?.Invoke(); }); }
@@ -237,5 +266,5 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         else if (e.Key == VirtualKey.Home) next = 0; else if (e.Key == VirtualKey.End) next = order.Count - 1; else return;
         string id = order[Math.Clamp(next, 0, order.Count - 1)]; Reveal(id); Selected?.Invoke(id); e.Handled = true;
     }
-    public void Dispose() { _disposed = true; _renderer.Dispose(); }
+    public void Dispose() { _disposed = true; _dropPaint.Dispose(); _renderer.Dispose(); }
 }
