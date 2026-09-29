@@ -38,7 +38,7 @@ public sealed partial class WorkbenchView
             bool canvasVisible = _editor.Content == _graphics && _body.Visibility == Visibility.Visible;
             var canvasOrigin = canvasVisible ? _canvas.TransformToVisual(this).TransformPoint(new Point(0, 0)) : new Point(0, 0);
             var ladderHits = (canvasVisible ? _canvas.HitRegions : Array.Empty<ControlSpace.Rendering.Skia.HitRegion>()).Select(h => new { id = h.Id, kind = h.Kind, x = canvasOrigin.X + (h.Bounds.X - _canvas.HorizontalOffset) * _canvas.Zoom, y = canvasOrigin.Y + (h.Bounds.Y - _canvas.ScrollOffset) * _canvas.Zoom, width = h.Bounds.Width * _canvas.Zoom, height = h.Bounds.Height * _canvas.Zoom }).ToArray();
-            var json = JsonSerializer.Serialize(new { performance = new {
+            var json = JsonSerializer.Serialize(new { navigation = new { rows = _tree.RealizedRowCount, creations = _tree.RowCreations, visible = _tree.VisibleEntryCount, selected = _tree.SelectedId, filter = _tree.Filter, indexBuilds = _tree.IndexBuilds, projectionBuilds = _tree.ProjectionBuilds }, performance = new {
                 paintCount = _canvas.PaintCount, renderRequests = _canvas.RenderRequests, renderSubmissions = _canvas.RenderSubmissions,
                 lastPaintMilliseconds = _canvas.LastPaintMilliseconds, snapshotCopies = _workspace.Controller?.SnapshotCopies ?? 0,
                 visualVersion = _workspace.Controller?.VisualVersion ?? 0, recoverySerializations = RecoverySerializations,

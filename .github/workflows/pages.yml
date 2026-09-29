@@ -34,6 +34,8 @@ jobs:
         run: dotnet run --project tests/ControlSpace.Workbench.Tests -c Release
       - name: Transactional tag table regressions
         run: dotnet run --project tests/ControlSpace.Table.Tests -c Release
+      - name: Project navigation regressions
+        run: dotnet run --project tests/ControlSpace.Navigation.Tests -c Release
       - name: Program and ladder authoring regressions
         run: dotnet run --project tests/ControlSpace.Program.Tests -c Release
       - name: Publish the real Uno Skia WebAssembly app
@@ -60,6 +62,7 @@ jobs:
           python tests/browser/tag_table.py http://127.0.0.1:4173/ControlSpace/
           python tests/browser/program_editor.py http://127.0.0.1:4173/ControlSpace/
           python tests/browser/uno_performance_test.py http://127.0.0.1:4173/ControlSpace/
+          python tests/browser/navigation_test.py http://127.0.0.1:4173/ControlSpace/
       - name: Stage genuine Uno UI previews
         run: |
           mkdir -p artifacts/site/docs/uno
