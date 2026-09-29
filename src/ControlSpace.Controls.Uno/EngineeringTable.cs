@@ -16,7 +16,7 @@ namespace ControlSpace.Controls.Uno;
 /// <summary>Viewport-recycled PLC tag grid. Header, selection and edits do not enter project history.</summary>
 public sealed class EngineeringTable : UserControl
 {
-    private const double RowHeight = 24, Gutter = 36;
+    private const double RowHeight = 24, Gutter = 48;
     private sealed class RowVisual
     {
         public Grid Root { get; } = new() { Height = RowHeight };
