@@ -103,6 +103,7 @@ jobs:
       - name: Compare identical benchmark harness against pinned baseline
         env:
           BASELINE: 4ec2bd939d9a712ce7e87e1e248f339d256c25c7
+          DOTNET_TieredCompilation: '0'
         run: |
           mkdir -p artifacts/performance
           git worktree add --detach "$RUNNER_TEMP/controlspace-baseline" "$BASELINE"

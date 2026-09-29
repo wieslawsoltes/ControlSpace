@@ -78,7 +78,10 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         if (!IsValidView(_view)) _view = _documents.ActiveId ?? "";
         _tree.SetProject(_workspace.Project); _title.Text = "ControlSpace — " + _workspace.Project.Name + (_workspace.IsDirty ? " *" : "");
         _canvas.Project = _workspace.Project; _canvas.Controller = _workspace.Controller; _canvas.HmiRuntime = _hmiRuntime;
-        ShowView(); ShowCompilation(); ShowPalette(); UpdateDocuments(); UpdateRuntime();
+        ShowView();
+        if (!ReferenceEquals(_lastCompilation, _workspace.Compilation) || !ReferenceEquals(_lastCompileProject, _workspace.Project))
+        { _lastCompilation = _workspace.Compilation; _lastCompileProject = _workspace.Project; ShowCompilation(); }
+        ShowPalette(); UpdateDocuments(); UpdateRuntime();
     }
     public void Navigate(string view)
     {
@@ -87,12 +90,22 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         _portal.Visibility = Visibility.Collapsed; _body.Visibility = Visibility.Visible; _projectDrawer = _taskDrawer = false;
         _view = view == "hmi" ? FirstHmiView() : view; _selection = ""; _canvas.Selection = null;
         ShowView(); ShowPalette(); ShowGeneralProperties(); UpdateDocuments(); ApplyLayout();
+        if (_editor.Content == _graphics) _canvas.RequestRender();
     }
     private void ShowView()
     {
+        var currentBlock = _workspace.Project.Blocks.FirstOrDefault(b => "block:" + b.Id == _view);
+        if (_shownView == _view && ReferenceEquals(_shownProject, _workspace.Project) && _view != "diagnostics" &&
+            (currentBlock?.Language != BlockLanguage.SCL || _source is not null)) return;
+        // Compile/save notifications keep the same document. A committed SCL draft can
+        // keep its native TextBox and undo/caret state instead of tearing it down.
+        if (_shownView == _view && _source is not null && currentBlock?.Language == BlockLanguage.SCL &&
+            (_sourceBase == currentBlock.Source || _source.Text == currentBlock.Source))
+        { _sourceBase = currentBlock.Source; _shownProject = _workspace.Project; _breadcrumb.Text = _workspace.Project.Name + "  ›  " + ViewPath(_view); UpdateEditorTools(); return; }
+        _shownView = _view; _shownProject = _workspace.Project; EditorBuilds++;
         _source = null;
         _breadcrumb.Text = _workspace.Project.Name + "  ›  " + ViewPath(_view);
-        _editorTools.Children.Clear(); BuildEditorTools();
+        UpdateEditorTools();
         if (_view.Length == 0) { ShowEmptyEditor(); return; }
         if (_view.StartsWith("block:"))
         {
@@ -121,7 +134,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         else { _canvas.Mode = _view == "devices" ? EditorMode.Devices : IsHmiView ? EditorMode.Hmi : EditorMode.Trace; _canvas.ScreenId = IsHmiView ? _view[4..] : ""; _editor.Content = _graphics; }
         _graphics.Refresh();
         _tree.SetActive(_view);
-        _canvas.Invalidate();
+        _canvas.RequestRender();
     }
     private void CommitSource()
     {
@@ -209,12 +222,6 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     private void Stop() { _scan.Stop(); _workspace.Controller?.Stop(); UpdateRuntime(); }
     private void Step() => Safe(() => { EnsureController(); _workspace.Controller!.Step(TimeSpan.FromMilliseconds(100), true); UpdateRuntime(); });
     private void ResetController() { _scan.Stop(); _workspace.Controller?.Reset(); UpdateRuntime(); }
-    private void UpdateRuntime()
-    {
-        var c = _workspace.Controller; if (_source is not null) _source.IsReadOnly = c?.State == ControllerState.Running; _canvas.Controller = c; _canvas.Invalidate(); _table.UpdateValues(_workspace.Project.Tags, c);
-        _metrics.Text = $"{c?.State.ToString().ToUpperInvariant() ?? "STOP"}  ·  {c?.Cycle ?? 0} scans  ·  CPU {c?.LastCpuMilliseconds ?? 0:0.000} ms";
-        _status.Text = c?.Fault is string fault ? "Simulation fault: " + fault : "Simulation only · No hardware connection · Uno / Skia host renderer";
-    }
     private void ShowCompilation()
     {
         _messages.Children.Clear(); var diagnostics = _workspace.Compilation?.Diagnostics;
@@ -227,7 +234,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
                 var block = _workspace.Project.Blocks.FirstOrDefault(b => b.Id == d.Location || b.Networks.Any(n => n.Id == d.Location || n.Output.Id == d.Location || n.Branches.SelectMany(p => p).Any(i => i.Id == d.Location)));
                 if (block is null) return; Navigate("block:" + block.Id);
                 if (_source is not null && d.Line > 0) { int position = 0; for (int line = 1; line < d.Line && position < _source.Text.Length; line++) { int next = _source.Text.IndexOf('\n', position); position = next < 0 ? _source.Text.Length : next + 1; } _source.Select(Math.Min(_source.Text.Length, position + Math.Max(0, d.Column - 1)), 0); _source.Focus(FocusState.Keyboard); }
-                else { _canvas.Selection = d.Location; Select(d.Location); _canvas.Invalidate(); }
+                else { _canvas.Selection = d.Location; Select(d.Location); _canvas.RequestRender(); }
             }));
             row.HorizontalAlignment = HorizontalAlignment.Stretch; row.HorizontalContentAlignment = HorizontalAlignment.Left; row.BorderThickness = new Thickness(0); row.Background = Brush("FFFFFF"); _messages.Children.Add(row);
         }
@@ -254,7 +261,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     public async Task InitializeAsync()
     {
         await LoadLayoutAsync();
-        try { string? json = await _files.ReadRecoveryAsync(); if (!string.IsNullOrWhiteSpace(json)) { _workspace.Load(ProjectStorage.Deserialize(json)); _lastRecovery = json; _status.Text = "Recovered local project. Simulation remains stopped."; } }
+        try { string? json = await _files.ReadRecoveryAsync(); if (!string.IsNullOrWhiteSpace(json)) { _workspace.Load(ProjectStorage.Deserialize(json)); _lastRecovery = json; _lastRecoveryProject = _workspace.Project; _lastRecoverySource = _source?.Text; _lastRecoverySourceId = _source is null ? null : _view; _status.Text = "Recovered local project. Simulation remains stopped."; } }
         catch (Exception ex) { Message("Recovery was not loaded: " + ex.Message); }
     }
     private async Task OpenAsync()
@@ -262,28 +269,10 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         try { CommitSource(); if (!await ConfirmReplaceAsync()) return; var json = await _files.OpenAsync(); if (json is null) return; var project = ProjectStorage.Deserialize(json); Stop(); _workspace.Load(project); Navigate(project.Blocks.Count > 0 ? "block:" + project.Blocks[0].Id : "portal"); }
         catch (Exception ex) { Message("Open failed: " + ex.Message); }
     }
-    private async Task SaveAsync()
-    {
-        try { CommitSource(); if (await _files.SaveAsync(ProjectStorage.Serialize(_workspace.Project), _workspace.Project.Name + ".controlspace")) { _workspace.MarkSaved(); _status.Text = "Project exported successfully."; } }
-        catch (Exception ex) { Message("Save failed: " + ex.Message); }
-    }
     private async Task ExportTagsAsync()
     {
         try { await _files.SaveAsync(ProjectStorage.ExportTagsCsv(_workspace.Project.Tags), _workspace.Project.Name + "-tags", ".csv"); }
         catch (Exception ex) { Message("CSV export failed: " + ex.Message); }
-    }
-    private async Task RecoverAsync()
-    {
-        if (_savingRecovery) return;
-        CaptureEditorState();
-        var recovery = ProjectSnapshot.Clone(_workspace.Project);
-        for (int i = 0; i < recovery.Blocks.Count; i++)
-            if (_editorStates.TryGetValue("block:" + recovery.Blocks[i].Id, out var state) && state.BaseSource == recovery.Blocks[i].Source)
-                recovery.Blocks[i] = recovery.Blocks[i] with { Source = state.Source };
-        string json = ProjectStorage.Serialize(recovery); if (json == _lastRecovery) return; _savingRecovery = true;
-        try { await _files.WriteRecoveryAsync(json); _lastRecovery = json; }
-        catch (Exception ex) { _status.Text = "Recovery unavailable: " + ex.Message; }
-        finally { _savingRecovery = false; }
     }
     private void About() => Message("ControlSpace 0.1.0 is an independent TIA Portal-style engineering preview, not Siemens software. Native .ap/.zap projects, S7 code generation and online protocols, WinCC runtimes, safety, motion, drives, certified timing, enterprise services and exact UI parity are not implemented. Never use this simulator to operate real machinery.");
     private void Safe(Action action) { try { if (!_table.TryCommitEdit()) return; CaptureEditorState(); action(); } catch (Exception ex) { Message(ex.Message); } }

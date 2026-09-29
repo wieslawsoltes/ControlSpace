@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using ControlSpace.Core;
 using ControlSpace.Languages;
 namespace ControlSpace.Simulation;
@@ -101,16 +102,20 @@ public sealed class VirtualPlc
         foreach (var (slot, value) in _forces) working[slot] = value;
         try
         {
-            foreach (var block in _program.Blocks)
+            for (int bi = 0; bi < _program.Blocks.Count; bi++)
             {
-                foreach (var network in block.Networks)
+                var block = _program.Blocks[bi];
+                for (int ni = 0; ni < block.Networks.Count; ni++)
                 {
+                    var network = block.Networks[ni];
                     bool power = false;
-                    foreach (var path in network.Branches)
+                    for (int pi = 0; pi < network.Branches.Count; pi++)
                     {
+                        var path = network.Branches[pi];
                         bool branch = true;
-                        foreach (var contact in path)
+                        for (int ci = 0; ci < path.Count; ci++)
                         {
+                            var contact = path[ci];
                             double operand = working[contact.Slot]; bool active = Contact(contact, operand);
                             branch &= active; flow[contact.Id] = branch;
                         }
@@ -122,7 +127,10 @@ public sealed class VirtualPlc
             }
             foreach (var (slot, value) in _forces) working[slot] = value;
             for (int slot = 0; slot < working.Length; slot++) ValidateValue(slot, working[slot]);
-            bool changed = !_values.AsSpan().SequenceEqual(working) || _flow.Count != flow.Count;
+            // All values have just been validated as finite. Byte comparison is vectorized;
+            // double.Equals-based sequence comparison can be scalar. Signed-zero changes
+            // conservatively repaint, which is harmless; no changed value can be missed.
+            bool changed = !MemoryMarshal.AsBytes(_values.AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(working.AsSpan())) || _flow.Count != flow.Count;
             if (!changed) foreach (var item in flow) if (!_flow.TryGetValue(item.Key, out bool old) || old != item.Value) { changed = true; break; }
             if (changed) VisualVersion++;
             _working = _values; _values = working; _nextFlow = _flow; _flow = flow; Cycle++; VirtualMilliseconds += milliseconds;
@@ -193,7 +201,7 @@ public sealed class VirtualPlc
     }
     private void ExecuteStatements(IReadOnlyList<Statement> statements, double[] values)
     {
-        foreach (var statement in statements) switch (statement)
+        for (int i = 0; i < statements.Count; i++) switch (statements[i])
         {
             case AssignmentStatement assignment:
                 double value = assignment.Value.Evaluate(values); ValidateValue(assignment.Slot, value); values[assignment.Slot] = value; break;

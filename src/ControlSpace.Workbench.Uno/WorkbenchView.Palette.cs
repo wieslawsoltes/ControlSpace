@@ -11,7 +11,8 @@ public sealed partial class WorkbenchView
 {
     private void ShowPalette()
     {
-        _palette.Children.Clear(); if (_taskPane is null) return;
+        if (_taskPane is null || !PaletteChanged()) return;
+        _palette.Children.Clear(); PaletteBuilds++;
         _taskPane.SetTitle(_layout.TaskCard == "Instructions" ? IsHmiView ? "Toolbox" : _view == "devices" ? "Hardware catalog" : "Instructions" : _layout.TaskCard);
         void Section(string text) => _palette.Children.Add(Header("▾  " + text));
         void Item(string text, Action action, InstructionKind? instruction = null)

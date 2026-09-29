@@ -162,7 +162,7 @@ public sealed partial class EngineeringRenderer : IDisposable
     public RenderResult Devices(SKCanvas canvas, float width, float height, ControlProject project, string? selection = null)
     {
         canvas.Clear(SKColor.Parse("#FAFBFC")); var hits = new List<HitRegion>();
-        for (float x = 0; x < width; x += 20) for (float y = 0; y < height; y += 20) { Color(SKColor.Parse("#DCE3E7")); canvas.DrawCircle(x, y, .65f, _paint); }
+        DrawGrid(canvas, width, height, SKColor.Parse("#DCE3E7"), .65f);
         foreach (var link in project.Links)
         {
             var a = project.Devices.Find(d => d.Id == link.From); var b = project.Devices.Find(d => d.Id == link.To); if (a is null || b is null) continue;
@@ -203,7 +203,7 @@ public sealed partial class EngineeringRenderer : IDisposable
         canvas.Clear(SKColor.Parse("#E1E5E8")); var hits = new List<HitRegion>();
         float scale = Math.Min((width - 48) / (float)screen.Width, (height - 48) / (float)screen.Height); scale = Math.Max(.1f, scale);
         canvas.Save(); canvas.Translate(24, 24); canvas.Scale(scale); Box(canvas, 0, 0, (float)screen.Width, (float)screen.Height, SKColor.Parse("#F7FAFC"), SKColor.Parse("#8D9DA7"));
-        if (!runtime) for (float x = 0; x < screen.Width; x += 20) for (float y = 0; y < screen.Height; y += 20) { Color(SKColor.Parse("#DFE8EC")); canvas.DrawCircle(x, y, .7f, _paint); }
+        if (!runtime) DrawGrid(canvas, (float)screen.Width, (float)screen.Height, SKColor.Parse("#DFE8EC"), .7f);
         foreach (var o in screen.Objects)
         {
             float x = (float)o.X, y = (float)o.Y, w = (float)o.Width, h = (float)o.Height; var color = SKColor.TryParse(o.Color, out var parsed) ? parsed : Teal;
