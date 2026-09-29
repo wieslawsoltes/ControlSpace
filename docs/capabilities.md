@@ -1,52 +1,45 @@
 # Capability and parity matrix
 
-This matrix describes implementation scope, not independent compatibility certification. “C# source” means authored code that has not yet been built in the initial delivery. “Prototype” means the separately labelled JavaScript implementation.
+This matrix describes the current implementation, not independent compatibility certification. The primary application is the shared C# / Uno workbench; the separately labelled JavaScript prototype is not a substitute for testing that application. Commit-specific [Actions results](https://github.com/wieslawsoltes/ControlSpace/actions) establish which build and interaction gates ran for a revision.
 
-| Area | C# / Uno source | JavaScript prototype | Remaining boundary |
-|---|---|---|---|
-| Classic engineering shell | Menus, tree, tabs, toolbars, task/output panes | Similar compact layout; resizable panes | Not pixel-exact TIA Portal; native/prototype layout differs |
-| Portal/project navigation | Implemented | Implemented | Not every TIA portal workflow |
-| Window docking | Fixed three-column shell | Resizable columns and output pane | Floating windows, persisted docking layouts, multiwindow absent |
-| Native custom controls | Public Uno canvas/tree/table/theme | Independent DOM controls | Native controls not browser-tested |
-| Project tree | Search and navigation | Search and navigation | Full collapse/expand state, hierarchy editing and folders absent |
-| LAD drawing | Shared Skia primitives and hit testing | WebGPU/Canvas primitives and hit testing | No unrestricted graphical graph topology |
-| Contacts and coils | NO/NC, edges, comparisons, coil/set/reset | Same intended subset | Vendor-complete instruction semantics absent |
-| Parallel paths | Model/compiler and branch editing | Add/edit paths | No nested arbitrary branch graph |
-| Timers and counters | TON/TOF/TP/CTU | Same intended subset | No complete IEC/S7 instruction library or qualification |
-| SCL | Bounded typed parser/interpreter | Bounded typed parser/interpreter | Not full SCL; no IntelliSense, loops, calls or block instances |
-| FBD/STL/GRAPH | Not implemented | Not implemented | Separate languages/editors needed |
-| Tag table | Types, addresses, properties, virtual writes | Editable metadata, rename, import/export, forces | No arrays, UDTs, optimized DBs or complete types |
-| Symbol rename | Core API rewrites tokens/LAD/HMI | UI exposes atomic rename | Native shell does not yet expose a rename field |
-| Cross-references | LAD reads/writes | LAD reads/writes | SCL/HMI indexed reference view absent |
-| Undo/redo | Bounded snapshot transactions | Bounded snapshot transactions | Branching revision graph and collaborative history absent |
-| Project files | JSON read/write; CSV API/export | JSON read/write; CSV read/write | `.ap*`, `.zap*`, Siemens Openness exchange absent |
-| Local recovery | Platform local-folder adapter | localStorage with error handling | Real persistence not qualified by offline test-double checks |
-| Simulator | In-process scans and fault behavior | In-process scans and fault behavior | No hardware PLC, PLCSIM or hard-real-time equivalence |
-| Online communication | Not implemented | Not implemented | S7, PROFINET, OPC UA, discovery and secure gateways absent |
-| Hardware topology | Generic devices/modules/links model and drawing | Device/module/link creation and editing | No manufacturer catalog, GSDML import or real bus behavior |
-| Native link creation | Model/API only | Exposed in UI | Native shell workflow remains to be exposed |
-| HMI editing | Basic object types, properties and drag-on-release | Types, bindings, live drag, snapping and momentary inputs | No WinCC project/runtime compatibility |
-| HMI runtime | Local tag bindings | Local tag bindings | Alarm systems, recipes, scripting, permissions and production runtime absent |
-| Trace | Bounded snapshots and speed plot | Bounded snapshots, speed plot, CSV export | Trigger configurations, multi-axis acquisition and long-term storage absent |
-| Rendering | Uno host Skia canvas | WebGPU geometry, Canvas 2D text/fallback | No physical-GPU validation, no pure-GPU layout/typography |
-| Large projects | Basic bounds and LAD culling | Basic bounds, culling and edit history budget | Full table virtualization and production-scale benchmarks pending |
-| Keyboard/accessibility | Standard controls and automation names | Keyboard selection lists, shortcuts, splitter keys | Complete UIA canvas peers, IME and screen-reader qualification pending |
-| Touch/mobile | Pointer event foundations | Pointer event foundations; compact desktop view tested | Not a fully qualified mobile UI |
-| Safety/motion/drives | Not implemented | Not implemented | No safety certification, motion planning, drive tools or commissioning |
-| Enterprise/collaboration | Not implemented | Not implemented | Authentication, roles, audit trail, multiuser, cloud sync absent |
-| Build/Pages/release | Workflows authored | Tests can run in build workflow | No remote workflow run or deployment in initial delivery |
+| Area | Shared C# / Uno implementation | Remaining boundary |
+| --- | --- | --- |
+| Engineering shell | Compact menus/toolbars, project/details panes, task cards, bottom inspector, editor bar, Portal view | Complete original commands/dialogs and pixel-exact visual qualification |
+| Panes and documents | Pointer/keyboard splitters, collapse/pin, maximize/restore, independent layout persistence, close/reorder/cycle tabs | Floating/split windows, drag docking, multiwindow layouts |
+| Project tree | Hierarchical navigation, collapse/expand, ancestor-preserving search, block context commands | Arbitrary hierarchy editing, user folders and full device trees |
+| Program blocks | LAD/SCL create/properties/duplicate/delete, automatic numbers, offline/cyclic participation, simulator order | Siemens OB/FB/FC/DB classes, interfaces, instances, block calls, interrupt dispatch |
+| LAD authoring | Selected-path insertion, typed operand dialogs, network title/comment editing, deep copies, contact/network ordering and deletion | Incomplete instruction placeholders, unrestricted graph editing and mixed textual networks |
+| LAD viewport | Shared Skia geometry, clipped labels, fixed contact spacing, network folding, two-axis scrolling, keyboard selection | Version/DPI-specific visual comparisons and full accessibility peers |
+| Contacts and coils | NO/NC, positive/negative edges, numeric comparisons, assignment/set/reset coils | Manufacturer-complete instruction semantics |
+| Parallel paths | Full flat paths, selected-path insertion/removal, structural validation | Arbitrary nested branches, partial branch starts/joins and wire routing |
+| Timers and counters | TON/TOF/TP, CTU and constant MOVE with typed operands/presets | Complete IEC/S7 instruction catalog and qualification |
+| SCL | Bounded typed parser/interpreter and source editor with draft/caret retention | Full SCL, loops, calls, interfaces, IntelliSense and IDE language services |
+| FBD/STL/GRAPH | Not implemented | Separate language and editor implementations |
+| PLC tag table | Virtualized editable grid, sort/filter, column controls, Retain, native copy/TSV paste, undoable batches, safe rename | Multiple table groups, constants, arrays, UDTs, optimized DBs and full Siemens types |
+| Symbol integrity | Transactional renames through LAD/SCL/HMI; referenced-tag deletion protection | Complete manufacturer symbol/type-resolution model |
+| Cross-references | LAD read/write view | Full indexed SCL/HMI/indirect reference navigation |
+| Undo/redo | Bounded project snapshot transactions, stale-dialog/paste protection | Branching history and collaborative revisions |
+| Project interchange | ControlSpace JSON, CSV tag API/export and clipboard TSV | Native `.ap*`/`.zap*`, Openness XML, XLSX/SDF interchange |
+| Recovery/preferences | Draft recovery adapter; independent desktop/browser layout persistence | Crash-consistent project recovery under every browser/storage failure |
+| Simulator | In-process cyclic scans, input image, virtual forcing, timers/counters, rollback and trace | PLCSIM/S7 equivalence, hard-real-time behavior and physical execution |
+| Online communication | No transport implementation | S7, PROFINET, OPC UA, discovery and secure gateways |
+| Hardware topology | Generic device/module/link model and shared drawing, basic properties | Manufacturer catalogs, GSDML, complete link-authoring UI and real bus behavior |
+| HMI editing | Basic object types, per-screen navigation, properties, drag-on-release and tag bindings | Full WinCC authoring/runtime, alarms, recipes, scripts and permissions |
+| Trace | Bounded snapshots and a selected-channel plot | Trigger configuration, multiaxis acquisition and long-term storage |
+| Rendering | Host-backed `SKCanvasElement`, retained Skia resources and packaged text faces | Direct C# WebGPU backend, physical-GPU performance and visual qualification |
+| Large projects | Viewport-recycled tag controls; culling and cached geometry for ladder networks | Production-scale latency/memory budgets and whole-workspace virtualization |
+| Keyboard/touch | Workbench and authoring shortcuts, pointer controls, compact pane drawers | Complete IME, screen-reader, native mobile and accessibility qualification |
+| Safety/motion/drives | Not implemented | Certified safety, motion planning, drives and commissioning |
+| Enterprise services | Not implemented | Authentication, permissions, audit, collaboration and continuous cloud sync |
+
+## Verification evidence and limits
+
+PR #8's merged revision `4b77f7d684de5356320a257b57be788a60436c14` passed the [main build](https://github.com/wieslawsoltes/ControlSpace/actions/runs/36534783897) and [browser/deployment workflow](https://github.com/wieslawsoltes/ControlSpace/actions/runs/36534783817). This included Windows/Linux/macOS compilation, portable tests and 29 compiled-Uno browser workflows. Its normal file-picker test imported 10,000 tags and reached the final row with 22 realized row controls at the tested viewport. This is a control-count result, not a GPU latency measurement.
+
+Program-authoring changes are tracked in [PR #9](https://github.com/wieslawsoltes/ControlSpace/pull/9), with dedicated portable and compiled-browser tests. Use the checks for the actual revision under review; earlier passing runs do not verify later changes. Build success is not native-desktop interaction qualification. See [verification scope](verification.md), [tag tables](tag-tables.md), and [program editing](program-editing.md).
 
 ## Reference scope
 
-The requested reference product is Siemens TIA Portal, whose engineering suite extends beyond PLC logic editing. The initial work focuses on an offline engineering shell and a small deterministic simulation model, not the complete product suite. Reference documentation reviewed for scope:
+The workflow reference is Siemens TIA Portal, which includes substantially more than PLC logic editing. ControlSpace remains an independent implementation focused on a reusable offline engineering shell and bounded simulation. No proprietary Siemens catalogs, firmware, logos or screenshots are distributed as application assets. Full/pixel-exact compatibility remains a goal, not a completed result.
 
-- Siemens TIA Portal: https://www.siemens.com/global/en/products/automation/industry-software/automation-software/tia-portal.html
-- Siemens documentation portal: https://docs.tia.siemens.cloud/
-- Uno 6.7 release: https://platform.uno/blog/uno-platform-6-7/
-- Uno shared canvas integration: https://platform.uno/docs/articles/controls/SKCanvasElement.html
-
-No screenshots or code from those product documentation pages are included as application assets.
-
-## Next engineering gates
-
-First compile and exercise the C# libraries and Uno hosts. Resolve API/build/runtime failures before publishing the primary browser site. Then establish differential scan fixtures, measured rendering/accessibility tests and native/prototype interaction convergence. Full language support, external protocols and native project formats should each have their own scoped compatibility specification and independently testable package rather than being advertised as complete by adding toolbar labels.
+Never use this simulator to operate or commission physical machinery.

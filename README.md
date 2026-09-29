@@ -22,6 +22,10 @@ Pane splitters support pointer and keyboard resizing. Maximize/restore preserves
 
 The Uno tag editor now has a compact, virtualized grid with inline editing, rectangular clipboard paste, validation, undo/redo, reference-safe renaming, filtering, sorting, column resizing/reordering, optional monitoring, and add/duplicate/delete commands. See the [tag-table guide and compatibility limits](docs/tag-tables.md).
 
+## Program authoring
+
+Create, organize and duplicate LAD/SCL blocks from the project tree or block directory. Edit network titles/comments, contacts, flat parallel branches and typed operands through dialogs, context menus and keyboard commands. Collapsible networks, two-axis scrolling and packaged renderer fonts keep long rungs readable. See the [program-editing guide](docs/program-editing.md) for commands, reuse and model boundaries.
+
 ## Engineering workflows
 
 | Area | Implemented scope |

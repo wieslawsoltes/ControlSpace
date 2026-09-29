@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — program and LAD authoring
+
+- Added a reusable program directory and transactional LAD/SCL block creation, properties, duplication, deletion and simulator scan-order commands. Copies use fresh graph identifiers and start offline.
+- Added network title/comment dialogs, copy/order/delete, selection-aware contacts, full parallel branches and typed instruction/operand suggestions. Invalid or stale dialog edits are rejected without partial changes.
+- Added graphical selection, keyboard authoring and task-palette dragging, view-only network collapse and a shared logical ladder layout with horizontal/vertical scrollbars.
+- Loaded packaged fonts for shared Skia drawing and retained readable contact spacing for long rungs.
+- Added portable authoring/geometry tests and compiled-Uno dialog, ladder and program-directory browser scenarios. Full TIA Portal model and pixel-exact parity are not claimed.
+
 ## Unreleased — editable PLC tag tables
 
 - Replaced read-only Uno tag rows with a compact viewport-recycled grid and editable cells.
