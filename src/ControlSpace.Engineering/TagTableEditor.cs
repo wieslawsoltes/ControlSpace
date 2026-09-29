@@ -10,6 +10,14 @@ public sealed record TagCellEdit(string TagName, TagColumn Column, string Value)
 public sealed class TagTableEditor(Workspace workspace)
 {
     public Workspace Workspace { get; } = workspace ?? throw new ArgumentNullException(nameof(workspace));
+    /// <summary>Use a captured snapshot for asynchronous edits; also rejects undo/redo revision reuse.</summary>
+    public void Apply(IReadOnlyList<TagCellEdit> edits, ControlProject expectedSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(expectedSnapshot);
+        if (!ReferenceEquals(Workspace.Project, expectedSnapshot))
+            throw new InvalidOperationException("The project changed. Review the current table and retry the edit.");
+        Apply(edits, expectedSnapshot.Revision, expectedSnapshot.Id);
+    }
     public void Apply(IReadOnlyList<TagCellEdit> edits, long expectedRevision, string expectedProjectId)
     {
         ArgumentNullException.ThrowIfNull(edits);
@@ -37,6 +45,12 @@ public sealed class TagTableEditor(Workspace workspace)
                     _ => throw new ArgumentException("Monitor values are read-only. Use the virtual watch/force inspector.")
                 };
             }
+            // A direct type edit keeps the byte address and converts its width when safe.
+            // Explicit pasted addresses remain authoritative regardless of visible column order.
+            var addressed = edits.Where(e => e.Column == TagColumn.Address).Select(e => e.TagName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in changes.Keys.ToArray())
+                if (changes[name].Type != originals[name].Type && !addressed.Contains(name))
+                    changes[name] = changes[name] with { Address = ConvertAddressWidth(changes[name].Address, changes[name].Type) };
             var renames = changes.Where(e => !string.Equals(e.Key, e.Value.Name, StringComparison.Ordinal))
                 .ToDictionary(e => e.Key, e => e.Value.Name, StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < p.Tags.Count; i++) if (changes.TryGetValue(p.Tags[i].Name, out var tag)) p.Tags[i] = tag;
@@ -123,6 +137,12 @@ public sealed class TagTableEditor(Workspace workspace)
         long bytes = long.Parse(address.AsSpan(start, end - start), CultureInfo.InvariantCulture);
         return ((long)char.ToUpperInvariant(address[1]) << 32) + bytes * 8 + (end < address.Length ? address[end + 1] - '0' : 0);
     }
+    private static string ConvertAddressWidth(string address, PlcType type)
+    {
+        long bit = AddressKey(address) & uint.MaxValue;
+        string prefix = "%" + char.ToUpperInvariant(address[1]);
+        return type == PlcType.Bool ? $"{prefix}{bit / 8}.0" : $"{prefix}{(type == PlcType.Int ? "W" : "D")}{bit / 8}";
+    }
     private static string AllocateAddress(IReadOnlyList<PlcTag> tags, PlcType type)
     {
         var occupied = new HashSet<long>();
@@ -163,8 +183,29 @@ public sealed class TagTableEditor(Workspace workspace)
 /// <summary>Bounded quoted TSV codec for spreadsheet clipboard interchange, not file-format conversion.</summary>
 public static class TableClipboard
 {
-    public static string Write(IEnumerable<IEnumerable<string>> rows) => string.Join("\r\n", rows.Select(r => string.Join('\t', r.Select(v =>
-        v.IndexOfAny(['\t', '\r', '\n', '"']) >= 0 ? "\"" + v.Replace("\"", "\"\"") + "\"" : v))));
+    public static string Write(IEnumerable<IEnumerable<string>> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        var result = new StringBuilder(); int rowCount = 0, cells = 0, width = -1;
+        foreach (var row in rows)
+        {
+            if (++rowCount > 10000) throw new ArgumentException("Clipboard row limit exceeded.");
+            if (rowCount > 1) result.Append("\r\n");
+            int count = 0;
+            foreach (var value in row)
+            {
+                if (value is null || value.Length > 16384 || ++cells > 70000) throw new ArgumentException("Clipboard cell limit exceeded.");
+                bool quoted = value.IndexOfAny(['\t', '\r', '\n', '"']) >= 0;
+                int length = value.Length + (quoted ? 2 + value.Count(c => c == '"') : 0);
+                if (result.Length + length + (count > 0 ? 1 : 0) > 1_000_000) throw new ArgumentException("Clipboard text exceeds 1 MB.");
+                if (count++ > 0) result.Append('\t');
+                if (quoted) result.Append('"').Append(value.Replace("\"", "\"\"")).Append('"'); else result.Append(value);
+            }
+            if (width < 0) width = count;
+            if (count == 0 || count != width) throw new ArgumentException("Copy requires a rectangular table.");
+        }
+        return result.ToString();
+    }
     public static IReadOnlyList<IReadOnlyList<string>> Read(string text)
     {
         ArgumentNullException.ThrowIfNull(text);

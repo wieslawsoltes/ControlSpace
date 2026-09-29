@@ -50,7 +50,12 @@ async def main():
             await click('tree-tags')
             await wait("window.controlSpaceVerification.view==='tags'")
             assert (await state())['tableRows']==11
-            passed('compact tag grid displays existing model')
+            geometry=(await state())['controls']
+            header=next(c for c in geometry if c['id']=='tag-header-Name')
+            cell=next(c for c in geometry if c['id']=='tag-cell-Start_PB-Name')
+            assert abs(header['x']-cell['x'])<=1, 'Data cells must align with their header'
+            assert abs(header['y']+header['height']-cell['y'])<=2, 'First row must immediately follow the header'
+            passed('compact tag grid displays model with header-aligned rows')
             await edit('Start_PB','Comment','Updated from the grid')
             await wait("window.controlSpaceVerification.tags.find(t=>t.Name==='Start_PB').Comment==='Updated from the grid'")
             await click('undo')
@@ -61,6 +66,20 @@ async def main():
             await edit('Start_PB','Comment','Discarded text',False)
             assert (await state())['tags'][0]['Comment']=='Updated from the grid'
             passed('Escape cancels cell edit without changing project')
+            await click('tag-retain-Start_PB')
+            await wait("window.controlSpaceVerification.tags[0].Retain===true")
+            await click('undo'); await wait("window.controlSpaceVerification.tags[0].Retain===false")
+            passed('Retain checkbox participates in undo history')
+            await click('tag-cell-Start_PB-Comment'); await page.keyboard.press('F2')
+            await wait("window.controlSpaceVerification.controls.some(c=>c.id==='tag-cell-editor')")
+            await page.keyboard.press('Control+A'); await page.keyboard.type('Committed before filtering')
+            await click('tag-filter'); await page.keyboard.type('Speed')
+            await wait("window.controlSpaceVerification.tableRows===2 && window.controlSpaceVerification.tags[0].Comment==='Committed before filtering'")
+            await page.keyboard.press('Control+A'); await page.keyboard.press('Backspace')
+            await wait('window.controlSpaceVerification.tableRows===11')
+            await click('undo')
+            await wait("window.controlSpaceVerification.tags[0].Comment==='Updated from the grid'")
+            passed('filtering commits a draft without stealing filter input')
             await edit('Speed_Setpoint','Name','Line_Setpoint')
             await wait("window.controlSpaceVerification.tags.some(t=>t.Name==='Line_Setpoint')")
             assert '"Line_Setpoint"' in (await state())['blockSources']['speed']
@@ -96,6 +115,9 @@ async def main():
             await click('tag-add'); await wait('window.controlSpaceVerification.tagCount===12')
             created=(await state())['tableSelection']
             assert created.startswith('Tag_')
+            await edit(created,'DataType','INT')
+            await wait(f"window.controlSpaceVerification.tags.find(t=>t.Name==={json.dumps(created)}).Address.startsWith('%MW')")
+            await click(f'tag-cell-{created}-Name')
             await click('tag-duplicate'); await wait('window.controlSpaceVerification.tagCount===13')
             await click('tag-delete'); await wait('window.controlSpaceVerification.tagCount===12')
             passed('add duplicate and delete allocate valid unique tags')

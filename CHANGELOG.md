@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — editable PLC tag tables
+
+- Replaced read-only Uno tag rows with a compact viewport-recycled grid and editable cells.
+- Added atomic rectangular clipboard batches, reference-safe simultaneous renames, guarded deletion, and nonoverlapping marker allocation.
+- Added sorting/filtering, column resizing/reordering/visibility, range selection, keyboard navigation and visible-row monitoring.
+- Added portable table/clipboard regressions and actual Uno browser editing, clipboard and 10,000-tag file-import tests.
+- No full or pixel-exact Siemens compatibility claim; see [tag-table scope](docs/tag-tables.md).
+
 ## Unreleased — workbench UI
 
 - Reworked the shared Uno project-view shell: compact menus/toolbars, project tree and details, separate task cards, bottom inspector, editor bar and status line.
