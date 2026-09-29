@@ -43,10 +43,10 @@ public sealed partial class EngineeringRenderer
         if (run.Blob is not null) canvas.DrawText(run.Blob, x, baseline, _paint);
         else { var font = bold ? _bold : _font; font.Size = size; canvas.DrawText(run.Text, x, baseline, font, _paint); }
     }
-    private void CenterText(SKCanvas canvas, string text, float center, float baseline, float width, SKColor color, float size)
+    private void CenterText(SKCanvas canvas, string text, float center, float baseline, float width, SKColor color, float size, bool bold = false)
     {
-        var run = Run(text, size, false, width);
-        PaintRun(canvas, run, center - run.Width / 2, baseline, color, size, false);
+        var run = Run(text, size, bold, width);
+        PaintRun(canvas, run, center - run.Width / 2, baseline, color, size, bold);
     }
     private void ClearTextRuns()
     {
