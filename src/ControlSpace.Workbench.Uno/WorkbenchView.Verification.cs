@@ -27,7 +27,7 @@ public sealed partial class WorkbenchView
                     if (!string.IsNullOrEmpty(id) && element.ActualWidth > 0 && element.ActualHeight > 0)
                     {
                         var point = element.TransformToVisual(this).TransformPoint(new Point(0, 0));
-                        controls.Add(new { id, x = point.X, y = point.Y, width = element.ActualWidth, height = element.ActualHeight });
+                        controls.Add(new { id, x = point.X, y = point.Y, width = element.ActualWidth, height = element.ActualHeight, text = element is Microsoft.UI.Xaml.Controls.TextBox field ? field.Text : element is Microsoft.UI.Xaml.Controls.AutoSuggestBox suggest ? suggest.Text : null });
                     }
                 }
                 int count = VisualTreeHelper.GetChildrenCount(node);

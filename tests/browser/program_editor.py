@@ -27,8 +27,19 @@ async def main():
         async def state():
             return await page.evaluate('window.controlSpaceVerification')
         async def bounds(identifier):
-            result=await page.wait_for_function('(id)=>window.controlSpaceVerification?.controls.find(c=>c.id===id && c.width>0 && c.height>0)',arg=identifier,timeout=20000)
-            return await result.json_value()
+            # The probe samples layout on a timer. Require repeated arranged coordinates,
+            # especially after opening a ContentDialog or rebuilding a filtered palette.
+            await page.wait_for_function('(id)=>window.controlSpaceVerification?.controls.some(c=>c.id===id && c.width>0 && c.height>0)',arg=identifier,timeout=20000)
+            previous = None
+            for _ in range(40):
+                b = await page.evaluate('(id)=>window.controlSpaceVerification?.controls.find(c=>c.id===id && c.width>0 && c.height>0)',identifier)
+                if b:
+                    geometry = tuple(round(b[k], 2) for k in ('x','y','width','height'))
+                    if geometry == previous and b['x']>=0 and b['y']>=0 and b['x']+b['width']/2<1600 and b['y']+b['height']/2<1000:
+                        return b
+                    previous = geometry
+                await page.wait_for_timeout(200)
+            raise AssertionError('Control did not settle: ' + identifier)
         async def click(identifier):
             b=await bounds(identifier); actions.append(identifier)
             await page.mouse.click(b['x']+b['width']/2,b['y']+b['height']/2)
@@ -37,7 +48,12 @@ async def main():
             await click(identifier); await page.keyboard.press('Control+A'); await page.keyboard.press('Backspace')
             for index, line in enumerate(text.split('\n')):
                 if index: await page.keyboard.press('Enter')
-                await page.keyboard.type(line)
+                await page.keyboard.type(line, delay=20)
+            await page.wait_for_function(r"""([id,text]) => {
+                const field=window.controlSpaceVerification?.controls.find(c=>c.id===id);
+                const normalize=t=>(t??'').replace(/\r\n|\r/g,'\n');
+                return field && normalize(field.text)===normalize(text);
+            }""",arg=[identifier,text],timeout=15000)
         async def hit(identifier,kind='instruction',double=False):
             result=await page.wait_for_function('([id,kind])=>window.controlSpaceVerification?.ladderHits.find(h=>h.id===id && h.kind===kind)',arg=[identifier,kind],timeout=20000)
             h=await result.json_value()
