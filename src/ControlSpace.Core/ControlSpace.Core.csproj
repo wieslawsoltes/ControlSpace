@@ -1,1 +1,1 @@
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><IsPackable>true</IsPackable></PropertyGroup><ItemGroup></ItemGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><IsPackable>true</IsPackable><Description>ControlSpace typed automation-engineering model: PLC tags, programs, devices and HMI screens with validation and detached snapshots.</Description></PropertyGroup><ItemGroup></ItemGroup></Project>

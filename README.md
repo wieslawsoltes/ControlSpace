@@ -41,6 +41,20 @@ Create, organize and duplicate LAD/SCL blocks from the project tree or block dir
 
 The [capability matrix](docs/capabilities.md) distinguishes supported subsets from unimplemented areas. FBD/STL/GRAPH, full SCL, native Siemens project files, PLC code generation, S7/PROFINET communication, WinCC compatibility, safety, drives, motion and enterprise services remain unsupported.
 
+## Download
+
+Every [release](https://github.com/wieslawsoltes/ControlSpace/releases/latest) ships a self-contained, single-file desktop app — no .NET install needed:
+
+| OS | x64 | Arm64 |
+| --- | --- | --- |
+| Windows | `ControlSpace-<version>-win-x64.zip` | `ControlSpace-<version>-win-arm64.zip` |
+| macOS | `ControlSpace-<version>-osx-x64.tar.gz` | `ControlSpace-<version>-osx-arm64.tar.gz` |
+| Linux | `ControlSpace-<version>-linux-x64.tar.gz` | `ControlSpace-<version>-linux-arm64.tar.gz` |
+
+Extract and run `ControlSpace` (`ControlSpace.exe` on Windows). Builds are not code-signed yet: on macOS clear the quarantine flag with `xattr -d com.apple.quarantine ControlSpace`; on Windows choose **More info → Run anyway** in SmartScreen. Verify downloads against `SHA256SUMS`.
+
+The libraries below are published to [NuGet.org](https://www.nuget.org/packages?q=ControlSpace), e.g. `dotnet add package ControlSpace.Core`.
+
 ## Reusable libraries
 
 | Library | Responsibility |
@@ -54,7 +68,7 @@ The [capability matrix](docs/capabilities.md) distinguishes supported subsets fr
 | `ControlSpace.Controls.Uno` | Canvas, table, project tree, theme, pane chrome, splitters and editor bar |
 | `ControlSpace.Workbench.Uno` | Composable workbench, `IProjectFiles` and optional `IWorkbenchPreferences` |
 
-`ControlSpace.App` supplies entry points and platform storage/file pickers. The first six libraries do not depend on the app shell. The two Uno libraries can be consumed by another Uno host. CI builds NuGet artifacts; no nuget.org or npm publishing is enabled.
+`ControlSpace.App` supplies entry points and platform storage/file pickers. The first six libraries do not depend on the app shell. The two Uno libraries (desktop and browser targets) can be consumed by another Uno host. Version tags publish all eight packages, with symbols, to NuGet.org; the JavaScript prototype is not published to npm.
 
 ```csharp
 using ControlSpace.Core;
@@ -104,7 +118,7 @@ The Pages workflow executes pointer/keyboard scenarios against the actual compil
 | --- | --- |
 | `build.yml` | C# engine/workbench and JavaScript tests; Windows/Linux/macOS compile matrix; prototype browser tests; portable packages |
 | `pages.yml` | Uno WASM publish, real UI workflows, Uno packages, screenshots, Pages deployment and live-commit verification |
-| `release.yml` | Version-tag desktop/browser/source archives, eight NuGet libraries, SHA-256 manifest and GitHub prerelease |
+| `release.yml` | Self-contained single-file desktop apps (Windows/macOS/Linux, x64 and arm64), browser/source archives, eight NuGet libraries with symbols and a SHA-256 manifest; tags create a GitHub Release and publish packages to NuGet.org via [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing) from the protected `nuget` environment, manual runs are dry runs that only upload workflow artifacts |
 
 PR builds cannot deploy Pages. No release tag is created by ordinary builds. [Deployment instructions](docs/deployment.md) cover the pipeline.
 

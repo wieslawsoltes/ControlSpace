@@ -2,42 +2,107 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for a dry run (tags publish; manual runs only build and upload artifacts)
+        required: true
+        default: '0.1.0'
 permissions:
   contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  APP_NAME: ControlSpace
+  APP_PROJECT: src/ControlSpace.App
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        name: Resolve release version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        shell: bash
+        run: |
+          VERSION="$INPUT_VERSION"
+          if [ "$REF_TYPE" = tag ]; then VERSION="${REF_NAME#v}"; fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version '$VERSION'" >&2; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
   desktop:
+    name: Desktop (${{ matrix.rid }})
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            rid: linux-x64
-          - os: windows-latest
-            rid: win-x64
-          - os: macos-latest
-            rid: osx-arm64
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+        rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      RID: ${{ matrix.rid }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - shell: bash
+      - name: Publish self-contained single-file executable
+        shell: bash
         run: |
-          dotnet publish src/ControlSpace.App -c Release -f net10.0-desktop \
-            -p:ControlSpaceTargetFrameworks=net10.0-desktop -r ${{ matrix.rid }} --self-contained true \
-            -p:Version=${GITHUB_REF_NAME#v} -o artifacts/${{ matrix.rid }}
-          python -c "import shutil;shutil.make_archive('ControlSpace-${{ matrix.rid }}','zip','artifacts/${{ matrix.rid }}')"
+          dotnet publish "$APP_PROJECT" -c Release -f net10.0-desktop -r "$RID" --self-contained true \
+            -p:ControlSpaceTargetFrameworks=net10.0-desktop \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none -p:DebugSymbols=false -p:Version="$VERSION" \
+            -o "artifacts/desktop/$RID"
+      - name: Package executable
+        shell: bash
+        run: |
+          OUT="artifacts/desktop/$RID"
+          find "$OUT" -name '*.pdb' -delete
+          mkdir -p artifacts/dist
+          BASE="$APP_NAME-$VERSION-$RID"
+          if [[ "$RID" == win-* ]]; then
+            mv "$OUT/$APP_NAME.App.exe" "$OUT/$APP_NAME.exe"
+            test "$(find "$OUT" -type f | wc -l)" -eq 1
+            (cd "$OUT" && zip -q "$GITHUB_WORKSPACE/artifacts/dist/$BASE.zip" "$APP_NAME.exe")
+          else
+            mv "$OUT/$APP_NAME.App" "$OUT/$APP_NAME"
+            chmod +x "$OUT/$APP_NAME"
+            test "$(find "$OUT" -type f | wc -l)" -eq 1
+            tar -C "$OUT" -czf "artifacts/dist/$BASE.tar.gz" "$APP_NAME"
+          fi
+          ls -la artifacts/dist
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.rid }}
-          path: ControlSpace-*.zip
-  packages-and-browser:
+          path: artifacts/dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [version, desktop]
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -48,47 +113,88 @@ jobs:
       - run: dotnet run --project tests/ControlSpace.Tests -c Release -- --fixtures tests/fixtures
       - run: npm test
       - name: Package all eight reusable libraries
+        shell: bash
         run: |
-          for library in Core Languages Simulation Storage Engineering Rendering.Skia; do
-            dotnet pack "src/ControlSpace.$library" -c Release -p:Version=${GITHUB_REF_NAME#v} -o artifacts/packages
+          for project in src/*/*.csproj; do
+            case "$project" in *.App.csproj) continue;; esac
+            dotnet pack "$project" -c Release -p:Version="$VERSION" -o artifacts/packages
           done
-          for library in Controls.Uno Workbench.Uno; do
-            dotnet pack "src/ControlSpace.$library" -c Release -p:ControlSpaceTargetFrameworks=net10.0-browserwasm -p:Version=${GITHUB_REF_NAME#v} -o artifacts/packages
-          done
+          ls -la artifacts/packages
+          test "$(find artifacts/packages -name '*.nupkg' | wc -l)" -eq 8
       - name: Publish portable Uno browser bundle
         run: |
           dotnet publish src/ControlSpace.App -c Release -f net10.0-browserwasm \
             -p:ControlSpaceTargetFrameworks=net10.0-browserwasm -p:WasmShellWebAppBasePath=./ \
-            -p:Version=${GITHUB_REF_NAME#v} -o artifacts/browser
-          python tools/prepare-pages.py artifacts/browser artifacts/site
-          python -c "import shutil;shutil.make_archive('artifacts/ControlSpace-browser','zip','artifacts/site')"
+            -p:Version="$VERSION" -o artifacts/browser
+          python3 tools/prepare-pages.py artifacts/browser artifacts/site
+          python3 -c "import shutil;shutil.make_archive('artifacts/ControlSpace-browser','zip','artifacts/site')"
           git archive --format=zip --output=artifacts/ControlSpace-source.zip HEAD
-      - uses: actions/upload-artifact@v4
-        with:
-          name: packages-and-browser
-          path: |
-            artifacts/packages/*.nupkg
-            artifacts/ControlSpace-*.zip
-  release:
-    needs: [desktop, packages-and-browser]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          path: release-assets
+          pattern: desktop-*
+          path: artifacts/dist
           merge-multiple: true
-      - name: Create prerelease with checksums
+      - name: Generate release checksums
+        shell: bash
+        run: |
+          cp artifacts/packages/*.nupkg artifacts/ControlSpace-browser.zip artifacts/ControlSpace-source.zip artifacts/dist/
+          (cd artifacts/dist && sha256sum * > SHA256SUMS)
+          cat artifacts/dist/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: controlspace-release
+          path: artifacts/dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/packages/*.snupkg
+          if-no-files-found: error
+      - name: Publish GitHub release for version tag
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
         run: |
-          python - <<'PY'
-          import hashlib, pathlib
-          root=pathlib.Path('release-assets')
-          files=sorted(p for p in root.rglob('*') if p.is_file())
-          (root/'SHA256SUMS').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in files))
-          PY
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --prerelease \
-            $(find release-assets -type f)
+          PRE=()
+          case "$VERSION" in *-*) PRE=(--prerelease);; esac
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" artifacts/dist/* --clobber
+          else
+            gh release create "$TAG" artifacts/dist/* --verify-tag --title "ControlSpace $VERSION" --generate-notes "${PRE[@]}"
+          fi
+
+  nuget:
+    name: Publish to NuGet.org (Trusted Publishing)
+    needs: [version, release]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: nuget
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: packages
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Check NuGet user
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+        run: test -n "$NUGET_USER" || { echo 'Set the NUGET_USER variable (your nuget.org profile name) for this repository or its nuget environment.' >&2; exit 1; }
+      - name: NuGet login (OIDC → short-lived API key)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+      - name: Push packages
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "packages/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
