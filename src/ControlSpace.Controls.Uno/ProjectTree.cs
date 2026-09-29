@@ -27,7 +27,7 @@ public sealed class ProjectTree : UserControl
     private readonly TextBlock _summary = Label("", 10, "667080");
     private readonly List<Row> _pool = [];
     private readonly ScrollViewer _scroll;
-    private bool _rendering;
+    private bool _rendering, _focusing;
     private string? _pendingFocus;
     public event Action<string>? OpenRequested;
     public event Action<string>? SelectionChanged;
@@ -73,6 +73,8 @@ public sealed class ProjectTree : UserControl
         Grid.SetRow(_scroll, 2); root.Children.Add(_scroll);
         _summary.Margin = new Thickness(7, 0, 5, 0); AutomationProperties.SetAutomationId(_summary, "tree-summary"); Grid.SetRow(_summary, 3); root.Children.Add(_summary);
         Content = root; Loaded += (_, _) => RenderRows();
+        _rows.LayoutUpdated += (_, _) => TryFocusPending();
+        _search.GotFocus += (_, _) => _pendingFocus = null;
         // Handle navigation before ScrollViewer consumes Home/End/Page keys as
         // viewport-only scrolling. Selection and focus must move together.
         _rows.KeyDown += OnKey;
@@ -119,7 +121,14 @@ public sealed class ProjectTree : UserControl
         row.Button = Button("", () => { if (row.Entry is { } entry) Activate(entry); });
         row.Button.Content = content; row.Button.Height = row.Button.MinHeight = RowHeight; row.Button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         row.Button.BorderThickness = new Thickness(0); row.Button.Background = Brush("F2F2F4"); row.Button.IsTabStop = false;
-        row.Button.GotFocus += (_, _) => { if (!_rendering && row.Entry is { } entry && _navigator.Select(entry.Id)) { PublishSelection(); RenderRows(); } };
+        row.Button.GotFocus += (_, _) =>
+        {
+            // GotFocus is asynchronous. A pooled button may have a different entry
+            // by delivery time, or no longer own focus. Never select that stale row.
+            if (_rendering || XamlRoot is null || FocusManager.GetFocusedElement(XamlRoot) != row.Button) return;
+            if (row.Entry is not { } entry || _pendingFocus is not null && _pendingFocus != entry.Id) return;
+            if (_navigator.Select(entry.Id)) { PublishSelection(); RenderRows(); }
+        };
         row.Button.ContextRequested += (_, e) =>
         {
             if (row.Entry?.Target?.StartsWith("block:", StringComparison.Ordinal) != true) return;
@@ -173,17 +182,37 @@ public sealed class ProjectTree : UserControl
             }
         }
         finally { _rendering = false; }
-        if (_pendingFocus is string id && _pool.FirstOrDefault(r => r.Entry?.Id == id) is Row focus)
-        { _pendingFocus = null; focus.Button.Focus(FocusState.Keyboard); }
+        TryFocusPending();
+    }
+    private void TryFocusPending()
+    {
+        if (_rendering || _focusing || _pendingFocus is not string id) return;
+        int index = _navigator.VisibleIndexOf(id);
+        if (index < 0) { _pendingFocus = null; return; }
+        var row = _pool.FirstOrDefault(r => r.Entry?.Id == id);
+        if (row is null || row.Button.ActualHeight <= 0) return;
+        double top = index * RowHeight;
+        // Canvas.SetTop invalidates arrange but does not synchronously move the
+        // recycled button. Focusing it at its previous position lets BringIntoView
+        // scroll backwards and can recycle the target again. Wait for actual layout.
+        double arrangedTop = row.Button.TransformToVisual(_rows).TransformPoint(new Windows.Foundation.Point(0, 0)).Y;
+        if (Math.Abs(arrangedTop - top) > .5 || top < _scroll.VerticalOffset - .5 ||
+            top + RowHeight > _scroll.VerticalOffset + _scroll.ViewportHeight + .5) return;
+        _focusing = true;
+        try
+        {
+            if (row.Button.Focus(FocusState.Keyboard) && _pendingFocus == id) _pendingFocus = null;
+        }
+        finally { _focusing = false; }
     }
     private void FocusEntry(string id)
     {
         int index = _navigator.VisibleIndexOf(id); if (index < 0) return;
-        _navigator.Select(id); PublishSelection();
+        _navigator.Select(id); PublishSelection(); _pendingFocus = id;
         double top = index * RowHeight, bottom = top + RowHeight;
         if (top < _scroll.VerticalOffset) _scroll.ChangeView(null, top, null, true);
         else if (bottom > _scroll.VerticalOffset + _scroll.ViewportHeight) _scroll.ChangeView(null, bottom - _scroll.ViewportHeight, null, true);
-        _pendingFocus = id; RenderRows();
+        RenderRows();
     }
     private void OnKey(object sender, KeyRoutedEventArgs e)
     {

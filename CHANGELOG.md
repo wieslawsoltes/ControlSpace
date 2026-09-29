@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — project navigation responsiveness
+
+- Recycled project-tree rows only for the viewport and overscan; retained an indexed outline across source, tag-value, network and HMI-object edits which do not alter it.
+- Added linear ancestor-preserving search, result counts, empty-search feedback, a clear-search button, explicit active-editor reveal and metadata in Details.
+- Kept keyboard selection, focus and scrolling synchronized for Home/End, PageUp/PageDown and parent/child navigation. Initial-letter keys cycle visible matching captions without opening documents or changing the filter.
+- Added native navigation regressions and actual Uno browser tests importing 1,000 blocks plus 1,000 screens. These measure bounded controls and correct behavior, not a TIA-relative or end-to-end latency improvement.
+
 ## Unreleased — performance and rendering quality
 
 - Removed JSON serialization from dirty/no-op checks and per-bit string allocation from address overlap validation.
