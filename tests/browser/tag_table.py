@@ -14,7 +14,7 @@ args = parser.parse_args()
 
 async def main():
     args.output.mkdir(parents=True, exist_ok=True)
-    checks, errors, console = [], [], []
+    checks, errors, console, actions = [], [], [], []
     failure = None
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True, args=['--no-sandbox'])
@@ -30,8 +30,22 @@ async def main():
         async def state():
             return await page.evaluate('window.controlSpaceVerification')
         async def click(identifier):
-            result = await page.wait_for_function('(id)=>window.controlSpaceVerification?.controls.find(c=>c.id===id && c.width>0 && c.height>0)', arg=identifier, timeout=20000)
-            b = await result.json_value()
+            await page.wait_for_function('(id)=>window.controlSpaceVerification?.controls.some(c=>c.id===id && c.width>0 && c.height>0)', arg=identifier, timeout=20000)
+            previous, stable = None, 0
+            # Telemetry can precede the next arrange/paint, especially immediately
+            # after a new browser context starts. Never click its first stale bounds.
+            for _ in range(30):
+                b = await page.evaluate('(id)=>window.controlSpaceVerification.controls.find(c=>c.id===id)', identifier)
+                coords = tuple(round(b[k], 2) for k in ('x', 'y', 'width', 'height')) if b else None
+                stable = stable + 1 if coords is not None and coords == previous else 0
+                if stable >= 2:
+                    break
+                previous = coords
+                await page.wait_for_timeout(160)
+            else:
+                raise AssertionError(f'Control did not settle before input: {identifier}: {b}')
+            assert b and b['width'] > 0 and b['height'] > 0, (identifier, b)
+            actions.append({'id': identifier, 'bounds': b, 'performance': (await state())['performance']})
             await page.mouse.click(b['x']+b['width']/2, b['y']+b['height']/2)
             await page.wait_for_timeout(400)
         async def edit(name, column, text, commit=True):
@@ -46,7 +60,8 @@ async def main():
             checks.append(name); print('PASS',name,flush=True)
         try:
             await page.goto(args.url+'?verify=1', wait_until='domcontentloaded', timeout=120000)
-            await page.wait_for_function('!!window.controlSpaceVerification', timeout=120000)
+            await page.wait_for_function('window.controlSpaceVerification?.performance?.paintCount>0', timeout=120000)
+            await wait("window.controlSpaceVerification.ladderFont.includes('Open Sans')")
             await click('tree-tags')
             await wait("window.controlSpaceVerification.view==='tags'")
             assert (await state())['tableRows']==11
@@ -136,7 +151,8 @@ async def main():
             context = await browser.new_context(viewport={'width':1600,'height':1000})
             page = await context.new_page(); await attach(page)
             await page.goto(args.url+'?verify=1', wait_until='domcontentloaded', timeout=120000)
-            await page.wait_for_function('!!window.controlSpaceVerification', timeout=120000)
+            await page.wait_for_function('window.controlSpaceVerification?.performance?.paintCount>0', timeout=120000)
+            await wait("window.controlSpaceVerification.ladderFont.includes('Open Sans')")
             project=json.loads(Path('tests/fixtures/conveyor.controlspace.json').read_text())
             project.update(id='tag-table-scale',name='Tag_Table_Scale',revision=0,blocks=[],devices=[],links=[],screens=[])
             project['tags']=[{'name':f'Tag{i:05d}','type':'Bool','address':f'%M{i//8}.{i%8}','initialValue':0,'comment':'Scale fixture','retain':False} for i in range(10000)]
@@ -159,7 +175,7 @@ async def main():
             failure=traceback.format_exc(); raise
         finally:
             await page.screenshot(path=str(args.output/'uno-tags-last.png'))
-            (args.output/'tag-table-logs.json').write_text(json.dumps({'checks':checks,'errors':errors,'console':console,'failure':failure,'state':await state()},indent=2))
+            (args.output/'tag-table-logs.json').write_text(json.dumps({'checks':checks,'errors':errors,'console':console,'failure':failure,'state':await state(),'actions':actions},indent=2))
             print('Tag table workflows:',len(checks),'passed',flush=True)
             print('Failure:',failure,flush=True)
             await browser.close()
