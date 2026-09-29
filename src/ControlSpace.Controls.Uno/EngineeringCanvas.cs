@@ -154,7 +154,8 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
     public string ScreenId { get; set; } = "";
     private HmiScreen? CurrentScreen => Project.Screens.FirstOrDefault(s => s.Id == ScreenId) ?? Project.Screens.FirstOrDefault();
     public string? Selection { get; set; }
-    public bool HmiRuntime { get; set; }
+    private bool _hmiRuntimeMode;
+    public bool HmiRuntime { get => _hmiRuntimeMode; set { if (_hmiRuntimeMode == value) return; CancelHmiInteraction(); _hmiRuntimeMode = value; RequestRender(); } }
     public float ScrollOffset { get; set; }
     public float Zoom { get; set; } = 1;
     public event Action<string>? Selected;
@@ -165,9 +166,11 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
         MinHeight = 100; MinWidth = 160; IsTabStop = true;
         PointerPressed += Pressed; PointerReleased += Released; PointerCanceled += Cancelled;
         PointerCaptureLost += Cancelled; PointerWheelChanged += Wheel;
+        PointerMoved += (_, e) => { if (Mode == EditorMode.Hmi) HmiMoved(e); };
+        Unloaded += (_, _) => CancelHmiInteraction();
         SizeChanged += (_, _) => RequestRender(); Loaded += async (_, _) => { RequestRender(); await LoadFontsAsync(); };
-        DoubleTapped += (_, e) => { if (Mode == EditorMode.Ladder && Hit(e.GetPosition(this)) is HitRegion hit) { EditRequested?.Invoke(hit.Id); e.Handled = true; } };
-        RightTapped += (_, e) => { if (Mode == EditorMode.Ladder && Hit(e.GetPosition(this)) is HitRegion hit) { Selection = hit.Id; Selected?.Invoke(hit.Id); ContextMenuRequested?.Invoke(hit.Id, e.GetPosition(this)); e.Handled = true; } };
+        DoubleTapped += (_, e) => { if (Mode == EditorMode.Hmi && !HmiRuntime) { var id = HmiHit(HmiPoint(e.GetPosition(this))); if (id is not null) HmiEditRequested?.Invoke(id); e.Handled = true; return; } if (Mode == EditorMode.Ladder && Hit(e.GetPosition(this)) is HitRegion hit) { EditRequested?.Invoke(hit.Id); e.Handled = true; } };
+        RightTapped += (_, e) => { if (Mode == EditorMode.Hmi && !HmiRuntime) { var id = HmiHit(HmiPoint(e.GetPosition(this))); if (id is not null && !HmiSelection.Contains(id)) SelectHmi([id]); HmiContextRequested?.Invoke(e.GetPosition(this)); e.Handled = true; return; } if (Mode == EditorMode.Ladder && Hit(e.GetPosition(this)) is HitRegion hit) { Selection = hit.Id; Selected?.Invoke(hit.Id); ContextMenuRequested?.Invoke(hit.Id, e.GetPosition(this)); e.Handled = true; } };
         KeyDown += LadderKey;
         AllowDrop = true;
         DragOver += (_, e) => { if (Mode == EditorMode.Ladder && Controller?.State != ControllerState.Running && e.DataView.Properties.TryGetValue("ControlSpace.Instruction", out var value) && value is string text && Enum.TryParse<InstructionKind>(text, out var kind) && Enum.IsDefined(kind)) { e.AcceptedOperation = DataPackageOperation.Copy; e.Handled = true; } };
@@ -193,10 +196,7 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
                 else canvas.Clear(SKColors.White);
                 break;
             case EditorMode.Devices: result = _renderer.Devices(canvas, width, height, Project, Selection); break;
-            case EditorMode.Hmi:
-                canvas.Clear(SKColor.Parse("#E1E5E8"));
-                if (CurrentScreen is HmiScreen screen) result = _renderer.HmiView(canvas, width, height, screen, Project.Tags, snapshot, Selection, HmiRuntime);
-                break;
+            case EditorMode.Hmi: result = RenderHmi(canvas, width, height); break;
             case EditorMode.Trace: _renderer.Trace(canvas, width, height, (IReadOnlyList<ScanSnapshot>?)Controller?.Trace ?? Array.Empty<ScanSnapshot>(), Project.Tags); break;
         }
         DrawInstructionDropPreview(canvas);
@@ -207,6 +207,7 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
     }
     private void Pressed(object sender, PointerRoutedEventArgs e)
     {
+        if (Mode == EditorMode.Hmi) { HmiPressed(e); return; }
         Focus(FocusState.Pointer);
         var point = e.GetCurrentPoint(this).Position;
         var hit = Hit(point);
@@ -229,6 +230,7 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
     }
     private void Released(object sender, PointerRoutedEventArgs e)
     {
+        if (Mode == EditorMode.Hmi) { HmiReleased(e); return; }
         if (_pressedTag is not null) { HmiInput?.Invoke(_pressedTag, false); _pressedTag = null; }
         if (_dragStart is Point start && _dragId is string id)
         {
@@ -241,10 +243,12 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
     }
     private void Cancelled(object sender, PointerRoutedEventArgs e)
     {
+        if (Mode == EditorMode.Hmi || HmiGestureActive) { CancelHmiInteraction(); return; }
         if (_pressedTag is not null) HmiInput?.Invoke(_pressedTag, false); _pressedTag = null; _dragId = null; _dragStart = null;
     }
     private void Wheel(object sender, PointerRoutedEventArgs e)
     {
+        if (Mode == EditorMode.Hmi) { HmiWheel(e); return; }
         if (Mode != EditorMode.Ladder) return;
         float delta = -e.GetCurrentPoint(this).Properties.MouseWheelDelta * .5f;
         bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
@@ -253,6 +257,7 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
     }
     private void LadderKey(object sender, KeyRoutedEventArgs e)
     {
+        if (Mode == EditorMode.Hmi) { HmiKey(e); return; }
         if (Mode != EditorMode.Ladder) return;
         bool shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         bool control = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
@@ -269,5 +274,5 @@ public sealed partial class EngineeringCanvas : SKCanvasElement, IDisposable
         else if (e.Key == VirtualKey.Home) next = 0; else if (e.Key == VirtualKey.End) next = order.Count - 1; else return;
         string id = order[Math.Clamp(next, 0, order.Count - 1)]; Reveal(id); Selected?.Invoke(id); e.Handled = true;
     }
-    public void Dispose() { _disposed = true; _dropPaint.Dispose(); _renderer.Dispose(); }
+    public void Dispose() { CancelHmiInteraction(); _disposed = true; _dropPaint.Dispose(); _renderer.Dispose(); }
 }
