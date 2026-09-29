@@ -10,9 +10,9 @@ public sealed class EngineeringRenderer : IDisposable
     private readonly SKPaint _paint = new() { IsAntialias = true };
     private SKTypeface _face = SKTypeface.FromFamilyName("Arial") ?? SKTypeface.Default;
     private SKTypeface _boldFace = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) ?? SKTypeface.Default;
+    private static readonly SKColor Ink = SKColor.Parse("#24313D"), Teal = SKColor.Parse("#008C95"), Gray = SKColor.Parse("#DADDDD"), Active = SKColor.Parse("#1A9F57");
     private readonly SKFont _font;
     private readonly SKFont _bold;
-    private static readonly SKColor Ink = SKColor.Parse("#24313D"), Teal = SKColor.Parse("#008C95"), Gray = SKColor.Parse("#DADDDD"), Active = SKColor.Parse("#1A9F57");
     public EngineeringRenderer() { _font = new(_face, 12); _bold = new(_boldFace, 12); }
     public string FontFamily => _face.FamilyName;
     /// <summary>Load host-provided font streams once; the renderer owns its resulting typefaces.</summary>
@@ -63,7 +63,7 @@ public sealed class EngineeringRenderer : IDisposable
             Text(canvas, $"Network {row.Index + 1}:  {network.Title}", 30, y + 18, size: 12, bold: true); canvas.Restore();
             if (row.Collapsed) continue;
             canvas.Save(); canvas.ClipRect(new SKRect(22, y + 27, logicalWidth - 20, y + 60));
-            Text(canvas, (network.Comment ?? "").Replace("\r", "").Replace("\n", "  ·  "), 24, y + 47, SKColor.Parse("#66737D"), 11); canvas.Restore();
+            Text(canvas, (network.Comment ?? "").Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "  ·  "), 24, y + 47, SKColor.Parse("#66737D"), 11); canvas.Restore();
             float left = 46, merge = logicalWidth - 168, outputX = logicalWidth - 85, firstY = y + 104;
             float lastY = firstY + (network.Branches.Count - 1) * (float)LadderLayout.BranchSpacing;
             bool monitored = snapshot?.Flow.ContainsKey(network.Id) == true;
@@ -98,9 +98,9 @@ public sealed class EngineeringRenderer : IDisposable
                 }
                 Line(canvas, wireX, lineY, merge, lineY, incoming ? Active : Ink);
             }
-            Line(canvas, merge, firstY, logicalWidth - 22, firstY, Flow(network.Id) ? Active : Ink);
             var o = network.Output; var outputRegion = new RectD(outputX - 62, firstY - 45, 124, 94); hits.Add(new(o.Id, "instruction", outputRegion));
             if (selection == o.Id) Box(canvas, (float)outputRegion.X, (float)outputRegion.Y, 124, 94, SKColor.Parse("#EAF3FC"), SKColor.Parse("#397FB7"));
+            Line(canvas, merge, firstY, logicalWidth - 22, firstY, Flow(network.Id) ? Active : Ink);
             bool blockOutput = o.Kind is InstructionKind.TimerOn or InstructionKind.TimerOff or InstructionKind.Pulse or InstructionKind.CountUp or InstructionKind.Move;
             if (blockOutput)
             {

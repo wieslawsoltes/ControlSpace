@@ -47,7 +47,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         var b = Project.Blocks.FirstOrDefault(b => b.Id == BlockId && b.Language == BlockLanguage.LAD);
         if (b is null) return _layout = null;
         double width = Math.Max(160, ActualWidth) / Math.Clamp(Zoom, .5f, 2);
-        if (!ReferenceEquals(b, _layoutBlock) || width != _layoutWidth || _layoutVersion != _foldVersion)
+        if (_layout is null || !ReferenceEquals(b, _layoutBlock) || width != _layoutWidth || _layoutVersion != _foldVersion)
         {
             _layoutBlock = b; _layoutWidth = width; _layoutVersion = _foldVersion;
             _layout = new(b, width, _collapsed);
@@ -88,6 +88,7 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         if (y < ScrollOffset) ScrollOffset = (float)y;
         else if (y + targetHeight > ScrollOffset + ActualHeight / Zoom) ScrollOffset = (float)(y + targetHeight - ActualHeight / Zoom);
         int column = n.Branches.SelectMany(path => path.Select((i, c) => (i, c))).FirstOrDefault(x => x.i.Id == id).c;
+        if (id == n.Id) HorizontalOffset = 0;
         if (id != n.Id)
         {
             var path = n.Branches.FindIndex(path => path.Any(i => i.Id == id));
@@ -145,7 +146,8 @@ public sealed class EngineeringCanvas : SKCanvasElement, IDisposable
         Drop += (_, e) =>
         {
             if (Mode != EditorMode.Ladder || !e.DataView.Properties.TryGetValue("ControlSpace.Instruction", out var value) || value is not string text || !Enum.TryParse<InstructionKind>(text, out var kind) || !Enum.IsDefined(kind)) return;
-            InstructionDropped?.Invoke(kind, Hit(e.GetPosition(this))?.Id, Project); e.Handled = true;
+            var hit = Hit(e.GetPosition(this));
+            if (hit is not null) InstructionDropped?.Invoke(kind, hit.Id, Project); e.Handled = true;
         };
     }
     protected override void RenderOverride(SKCanvas canvas, Size area)

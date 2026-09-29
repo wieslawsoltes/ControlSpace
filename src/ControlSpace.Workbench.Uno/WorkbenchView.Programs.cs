@@ -168,6 +168,7 @@ public sealed partial class WorkbenchView
     private void SelectLadder(string id) { _selection = id; _canvas.Reveal(id); Select(id); }
     private void ApplyLadderInstruction(InstructionKind kind, string? selection = null, ControlProject? expected = null) => Safe(() =>
     {
+        if (expected is not null) expected = _instructionDragProject ?? expected;
         if (expected is not null && !ReferenceEquals(expected, _workspace.Project)) throw new InvalidOperationException("Project changed during drag.");
         var b = ActiveLadder; var n = selection is null ? SelectedNetwork : ProgramEditor.FindNetwork(b, selection) ?? throw new ArgumentException("Drop onto a LAD network.");
         string chosen = selection ?? _selection;
@@ -213,10 +214,16 @@ public sealed partial class WorkbenchView
         { var item = new MenuFlyoutItem { Text = text }; item.Click += (_, _) => LadderCommand(command); menu.Items.Add(item); }
         menu.ShowAt(_canvas, new FlyoutShowOptions { Position = point });
     }
-    private static void ConfigureInstructionDrag(Button button, InstructionKind kind)
+    private ControlProject? _instructionDragProject;
+    private string _instructionDragState = "idle";
+    private void ConfigureInstructionDrag(Button button, InstructionKind kind)
     {
-        button.CanDrag = true;
-        button.DragStarting += (_, e) => { e.Data.Properties["ControlSpace.Instruction"] = kind.ToString(); e.Data.RequestedOperation = DataPackageOperation.Copy; };
+        PaletteDragSource.Attach(button, e =>
+        {
+            _instructionDragProject = _workspace.Project; _instructionDragState = "started:" + kind;
+            e.Data.Properties["ControlSpace.Instruction"] = kind.ToString(); e.Data.RequestedOperation = DataPackageOperation.Copy;
+        }, ex => { _instructionDragState = "error:" + ex.Message; Message("Instruction drag failed: " + ex.Message); });
+        button.DropCompleted += (_, e) => { _instructionDragState = "completed:" + e.DropResult; _instructionDragProject = null; };
         ToolTipService.SetToolTip(button, "Click to insert at selection, or drag onto a LAD network.");
     }
 }
