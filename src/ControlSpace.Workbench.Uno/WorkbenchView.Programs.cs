@@ -214,32 +214,4 @@ public sealed partial class WorkbenchView
         { var item = new MenuFlyoutItem { Text = text }; item.Click += (_, _) => LadderCommand(command); menu.Items.Add(item); }
         menu.ShowAt(_canvas, new FlyoutShowOptions { Position = point });
     }
-    private ControlProject? _instructionDragProject;
-    private string _instructionDragState = "idle";
-    private void ConfigureInstructionDrag(Button button, InstructionKind kind)
-    {
-        Point CanvasPoint(Point point) => button.TransformToVisual(_canvas).TransformPoint(point);
-        PaletteDragSource.Attach(button,
-            () => ApplyLadderInstruction(kind),
-            () => { _instructionDragProject = _workspace.Project; _instructionDragState = "started:" + kind; },
-            point =>
-            {
-                if (_instructionDragProject is not null && _editor.Content == _graphics && _body.Visibility == Visibility.Visible)
-                    _canvas.PreviewInstructionDrop(kind, CanvasPoint(point), _instructionDragProject);
-                else _canvas.ClearInstructionDropPreview();
-            },
-            point =>
-            {
-                var expected = _instructionDragProject;
-                string? target = expected is not null && _editor.Content == _graphics && _body.Visibility == Visibility.Visible
-                    ? _canvas.PreviewInstructionDrop(kind, CanvasPoint(point), expected) : null;
-                _canvas.ClearInstructionDropPreview();
-                if (target is not null) ApplyLadderInstruction(kind, target, expected);
-                _instructionDragState = target is null || ReferenceEquals(expected, _workspace.Project) ? "completed:None" : "completed:Copy";
-                _instructionDragProject = null;
-            },
-            () => { _instructionDragState = "cancelled"; _instructionDragProject = null; _canvas.ClearInstructionDropPreview(); },
-            ex => { _instructionDragState = "error:" + ex.Message; Message("Instruction drag failed: " + ex.Message); });
-        ToolTipService.SetToolTip(button, "Click to insert at selection, or drag onto a LAD network.");
-    }
 }

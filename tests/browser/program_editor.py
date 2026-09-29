@@ -19,6 +19,7 @@ async def main():
         browser = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         page = await browser.new_page(viewport={'width':1600,'height':1000})
         await page.add_init_script("Object.defineProperty(window,'controlSpaceVerification',{get(){return JSON.parse(window.controlSpaceVerificationJson||'null')}})")
+        await page.add_init_script("window.pointerTrace=[];for(const name of ['pointerdown','pointerup','gotpointercapture','lostpointercapture']) window.addEventListener(name,e=>{window.pointerTrace.push({type:name,x:e.clientX,y:e.clientY,target:e.target.tagName});if(window.pointerTrace.length>80)window.pointerTrace.shift();},true)")
         page.on('pageerror', lambda e: errors.append(str(e)))
         page.on('console', lambda m: logs.append({'type':m.type,'text':m.text}))
         async def wait(expression):
@@ -100,13 +101,17 @@ async def main():
             assert (await state())['ladderNetworks'][0]['Branches'][0][-1]['Tag']=='Stop_PB'
             passed('typed operand dialog rejects incompatible tag and applies BOOL operand')
             await fill('task-search','Normally open contact')
+            await wait("window.controlSpaceVerification.paletteFilter==='Normally open contact' && !window.controlSpaceVerification.controls.some(c=>c.id==='palette-Normally closed contact')")
+            await page.wait_for_timeout(250)
             source=await bounds('palette-Normally open contact')
+            actions.append({'dragSource':source})
             target=next(h for h in (await state())['ladderHits'] if h['id']==first and h['kind']=='instruction')
             await page.mouse.move(source['x']+source['width']/2,source['y']+source['height']/2)
             await page.mouse.down(); await page.wait_for_timeout(150)
             await page.mouse.move(source['x']-20,source['y']+source['height']/2,steps=5)
             await wait("window.controlSpaceVerification.instructionDrag.startsWith('started:')")
             await page.wait_for_timeout(300)
+            actions.append({'dragTarget':target})
             await page.mouse.move(target['x']+target['width']/2,target['y']+target['height']/2,steps=15)
             await wait('window.controlSpaceVerification.instructionDropTarget!==null')
             await page.screenshot(path=str(args.output/'uno-instruction-drag.png'))
@@ -196,7 +201,7 @@ async def main():
             failure=traceback.format_exc(); raise
         finally:
             await page.screenshot(path=str(args.output/'uno-program-last.png'))
-            data={'checks':checks,'errors':errors,'console':logs,'actions':actions,'failure':failure,'state':await state()}
+            data={'checks':checks,'errors':errors,'console':logs,'actions':actions,'failure':failure,'state':await state(),'pointerTrace':await page.evaluate('window.pointerTrace')}
             (args.output/'program-report.json').write_text(json.dumps(data,indent=2)+'\n')
             print('Program UI workflows:',len(checks),'passed; failure:',failure,flush=True)
             await browser.close()

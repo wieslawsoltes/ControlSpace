@@ -76,7 +76,7 @@ public sealed partial class WorkbenchView
         var inspector = BuildInspector(); Grid.SetRow(inspector, 5); _middle.Children.Add(inspector); Grid.SetColumn(_middle, 2); _body.Children.Add(_middle);
         var rightSplitter = new WorkbenchSplitter(false, "task-splitter"); rightSplitter.ResizeRequested += d => SetLayout(_layout with { TaskWidth = _layout.TaskWidth - d }); rightSplitter.ResetRequested += () => SetLayout(_layout with { TaskWidth = 248 }); Grid.SetColumn(rightSplitter, 3); _body.Children.Add(rightSplitter);
         var taskContent = new Grid(); taskContent.RowDefinitions.Add(new() { Height = GridLength.Auto }); taskContent.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
-        var paletteSearch = new TextBox { PlaceholderText = "Find in task card", FontSize = 12, MinHeight = 27, Padding = new Thickness(5, 3, 5, 3), Margin = new Thickness(4) }; AutomationProperties.SetAutomationId(paletteSearch, "task-search"); paletteSearch.TextChanged += (_, _) => { _paletteFilter = paletteSearch.Text; ShowPalette(); }; taskContent.Children.Add(paletteSearch);
+        var paletteSearch = new TextBox { PlaceholderText = "Find in task card", FontSize = 12, MinHeight = 27, Padding = new Thickness(5, 3, 5, 3), Margin = new Thickness(4) }; AutomationProperties.SetAutomationId(paletteSearch, "task-search"); paletteSearch.TextChanged += (_, _) => { if (_paletteFilter == paletteSearch.Text) return; _paletteFilter = paletteSearch.Text; ShowPalette(); }; taskContent.Children.Add(paletteSearch);
         var paletteScroll = new ScrollViewer { Content = _palette, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }; Grid.SetRow(paletteScroll, 1); taskContent.Children.Add(paletteScroll);
         _taskPane = new WorkbenchPane("Instructions", taskContent, "task-pane"); _taskPane.ToggleRequested += ToggleTasks; _taskPane.PinRequested += () => SetLayout(_layout with { AutoHideTasks = !_layout.AutoHideTasks }); Grid.SetColumn(_taskPane, 4); _body.Children.Add(_taskPane);
         var rail = new StackPanel { Background = Brush("C9C9D1"), Spacing = 2 };
@@ -135,30 +135,6 @@ public sealed partial class WorkbenchView
         _editorTools.Children.Add(Label("  " + ViewTitle(_view), 11, "666676"));
     }
     private void ZoomCanvas(float delta) { _canvas.ChangeView(zoom: _canvas.Zoom + delta); _zoomLabel.Text = $"{_canvas.Zoom * 100:0}%"; }
-    private void ShowPalette()
-    {
-        _palette.Children.Clear(); if (_taskPane is null) return;
-        _taskPane.SetTitle(_layout.TaskCard == "Instructions" ? IsHmiView ? "Toolbox" : _view == "devices" ? "Hardware catalog" : "Instructions" : _layout.TaskCard);
-        void Section(string text) => _palette.Children.Add(Header("▾  " + text));
-        void Item(string text, Action action, InstructionKind? instruction = null)
-        {
-            if (_paletteFilter.Length > 0 && !text.Contains(_paletteFilter, StringComparison.OrdinalIgnoreCase)) return;
-            var b = Button(text, action, "palette-" + text); b.HorizontalAlignment = HorizontalAlignment.Stretch; b.HorizontalContentAlignment = HorizontalAlignment.Left; b.BorderThickness = new Thickness(0); b.Background = Brush("F2F2F4"); b.MinHeight = 24; b.Padding = new Thickness(17, 2, 5, 2); if (instruction is InstructionKind k) ConfigureInstructionDrag(b, k); _palette.Children.Add(b);
-        }
-        if (_layout.TaskCard == "Testing") { Section("Virtual CPU"); Item("Start simulation", Run); Item("Stop simulation", Stop); Item("Single scan", Step); Item("Watch and force table", () => Navigate("watch")); Item("Trace", () => Navigate("trace")); Item("Online & diagnostics", () => Navigate("diagnostics")); }
-        else if (_layout.TaskCard == "Libraries") { Section("Project library"); foreach (var b in _workspace.Project.Blocks) Item(b.Name + " [" + b.Language + "]", () => Navigate("block:" + b.Id)); Section("Screens"); foreach (var screen in _workspace.Project.Screens) Item(screen.Name, () => Navigate("hmi:" + screen.Id)); }
-        else if (IsHmiView) { Section("Basic objects"); foreach (var kind in Enum.GetValues<HmiKind>()) { var k = kind; Item(k.ToString(), () => AddHmi(k)); } }
-        else if (_view == "devices") { Section("Virtual hardware"); Item("Add remote I/O station", AddDevice); Section("Configured devices"); foreach (var device in _workspace.Project.Devices) Item(device.Name + " · " + device.IpAddress, () => Select(device.Id)); }
-        else
-        {
-            Section("Basic instructions"); _palette.Children.Add(Label("  ▾  Bit logic operations", 12, bold: true));
-            foreach (var (name, kind) in new[] { ("Normally open contact", InstructionKind.Contact), ("Normally closed contact", InstructionKind.NegatedContact), ("Positive edge", InstructionKind.RisingEdge), ("Negative edge", InstructionKind.FallingEdge) }) Item(name, () => InsertContact(kind), kind);
-            Section("Comparator operations"); foreach (var kind in new[] { InstructionKind.Greater, InstructionKind.Less, InstructionKind.Equal }) { var k = kind; Item(k.ToString(), () => InsertContact(k), k); }
-            Section("Network operations"); Item("Insert network", AddNetwork); Item("Compile program", Compile);
-            Section("Coils / timers / counters"); foreach (var kind in Enum.GetValues<InstructionKind>().Where(LadderInstructions.IsOutput)) { var k = kind; Item(InstructionCaption(k), () => ApplyLadderInstruction(k), k); }
-        }
-        var note = Label("Simulation only. No physical device connection.", 10, "73666B"); note.TextWrapping = TextWrapping.Wrap; note.Margin = new Thickness(4, 16, 4, 4); _palette.Children.Add(note);
-    }
     private void SetInspector(string tab, bool reveal = true)
     {
         if (reveal) _maximized = false; _layout = _layout with { InspectorTab = tab, InspectorVisible = reveal || _layout.InspectorVisible };
