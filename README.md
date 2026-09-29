@@ -1,5 +1,7 @@
 # ControlSpace
 
+[![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Core.svg?label=NuGet)](https://www.nuget.org/packages/ControlSpace.Core) [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Core.svg)](https://www.nuget.org/packages/ControlSpace.Core)
+
 ### An independent automation-engineering workspace for desktop and browser
 
 [Open the Uno application](https://wieslawsoltes.github.io/ControlSpace/) · [Workbench guide](docs/workbench.md) · [Builds and verification](https://github.com/wieslawsoltes/ControlSpace/actions)
@@ -53,22 +55,112 @@ Every [release](https://github.com/wieslawsoltes/ControlSpace/releases/latest) s
 
 Extract and run `ControlSpace` (`ControlSpace.exe` on Windows). Builds are not code-signed yet: on macOS clear the quarantine flag with `xattr -d com.apple.quarantine ControlSpace`; on Windows choose **More info → Run anyway** in SmartScreen. Verify downloads against `SHA256SUMS`.
 
-The libraries below are published to [NuGet.org](https://www.nuget.org/packages?q=ControlSpace), e.g. `dotnet add package ControlSpace.Core`.
+## NuGet packages
 
-## Reusable libraries
+ControlSpace ships as eight MIT-licensed packages on [NuGet.org](https://www.nuget.org/packages?q=ControlSpace), versioned together and published by release tags with symbol packages (`.snupkg`) and SourceLink. The six engine packages target `net10.0` and have no UI dependency (only `ControlSpace.Rendering.Skia` needs SkiaSharp); the two Uno packages target `net10.0-desktop` and `net10.0-browserwasm` and can be consumed by any Uno Platform host. `ControlSpace.App` only supplies entry points and platform storage/file pickers and is not published; neither is the JavaScript prototype.
 
-| Library | Responsibility |
-| --- | --- |
-| `ControlSpace.Core` | Typed model, validation and detached snapshots |
-| `ControlSpace.Languages` | Bounded SCL parser, LAD compiler and typed intermediate representation |
-| `ControlSpace.Simulation` | Deterministic virtual scans, inputs, forcing and trace |
-| `ControlSpace.Storage` | JSON, CSV and atomic filesystem persistence |
-| `ControlSpace.Engineering` | Editing transactions, references, `WorkbenchLayout` and `EditorSession` |
-| `ControlSpace.Rendering.Skia` | Shared vector drawing and hit regions |
-| `ControlSpace.Controls.Uno` | Canvas, table, project tree, theme, pane chrome, splitters and editor bar |
-| `ControlSpace.Workbench.Uno` | Composable workbench, `IProjectFiles` and optional `IWorkbenchPreferences` |
+```sh
+dotnet add package ControlSpace.Core
+```
 
-`ControlSpace.App` supplies entry points and platform storage/file pickers. The first six libraries do not depend on the app shell. The two Uno libraries (desktop and browser targets) can be consumed by another Uno host. Version tags publish all eight packages, with symbols, to NuGet.org; the JavaScript prototype is not published to npm.
+| Package | Version | Downloads | Description |
+| --- | --- | --- | --- |
+| [ControlSpace.Core](https://www.nuget.org/packages/ControlSpace.Core) | [![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Core.svg)](https://www.nuget.org/packages/ControlSpace.Core) | [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Core.svg)](https://www.nuget.org/packages/ControlSpace.Core) | Typed PLC tags, programs, devices and HMI screens with validation and detached snapshots |
+| [ControlSpace.Languages](https://www.nuget.org/packages/ControlSpace.Languages) | [![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Languages.svg)](https://www.nuget.org/packages/ControlSpace.Languages) | [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Languages.svg)](https://www.nuget.org/packages/ControlSpace.Languages) | Bounded SCL parser, LAD compiler and typed intermediate representation |
+| [ControlSpace.Simulation](https://www.nuget.org/packages/ControlSpace.Simulation) | [![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Simulation.svg)](https://www.nuget.org/packages/ControlSpace.Simulation) | [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Simulation.svg)](https://www.nuget.org/packages/ControlSpace.Simulation) | Deterministic virtual PLC: scans, input image, forcing, timers/counters and bounded trace |
+| [ControlSpace.Storage](https://www.nuget.org/packages/ControlSpace.Storage) | [![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Storage.svg)](https://www.nuget.org/packages/ControlSpace.Storage) | [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Storage.svg)](https://www.nuget.org/packages/ControlSpace.Storage) | Versioned JSON projects, CSV tag interchange, import limits and atomic saves |
+| [ControlSpace.Engineering](https://www.nuget.org/packages/ControlSpace.Engineering) | [![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Engineering.svg)](https://www.nuget.org/packages/ControlSpace.Engineering) | [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Engineering.svg)](https://www.nuget.org/packages/ControlSpace.Engineering) | Validated edit transactions, undo/redo, reference-safe renaming, program/tag editors, `WorkbenchLayout` and `EditorSession` |
+| [ControlSpace.Rendering.Skia](https://www.nuget.org/packages/ControlSpace.Rendering.Skia) | [![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Rendering.Skia.svg)](https://www.nuget.org/packages/ControlSpace.Rendering.Skia) | [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Rendering.Skia.svg)](https://www.nuget.org/packages/ControlSpace.Rendering.Skia) | SkiaSharp vector rendering of ladder, hardware, HMI and trace views with hit regions and culling |
+| [ControlSpace.Controls.Uno](https://www.nuget.org/packages/ControlSpace.Controls.Uno) | [![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Controls.Uno.svg)](https://www.nuget.org/packages/ControlSpace.Controls.Uno) | [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Controls.Uno.svg)](https://www.nuget.org/packages/ControlSpace.Controls.Uno) | Uno controls: Skia engineering canvas, virtualized tag table, project tree, theme, pane chrome, splitters and editor bar |
+| [ControlSpace.Workbench.Uno](https://www.nuget.org/packages/ControlSpace.Workbench.Uno) | [![NuGet](https://img.shields.io/nuget/vpre/ControlSpace.Workbench.Uno.svg)](https://www.nuget.org/packages/ControlSpace.Workbench.Uno) | [![Downloads](https://img.shields.io/nuget/dt/ControlSpace.Workbench.Uno.svg)](https://www.nuget.org/packages/ControlSpace.Workbench.Uno) | Composable Uno engineering workbench (project view, Portal view, task cards, inspector) with `IProjectFiles` and optional `IWorkbenchPreferences` |
+
+Dependencies follow the real project references: `Core ← Languages ← Simulation`, `Core ← Storage`, `Languages + Simulation + Storage ← Engineering`, `Simulation ← Rendering.Skia`, `Engineering + Rendering.Skia ← Controls.Uno ← Workbench.Uno`.
+
+### ControlSpace.Core
+
+The typed automation-engineering model: immutable records for tags, instructions, LAD networks, program blocks, devices, links and HMI screens, plus a validator that reports addressing overlaps, invalid values and broken references. Use it on its own to generate, inspect or lint ControlSpace projects. No dependencies and no UI.
+
+```sh
+dotnet add package ControlSpace.Core
+```
+
+**Key types**
+
+- `ControlProject` — root record (`Tags`, `Blocks`, `Devices`, `Links`, `Screens`, `Revision`).
+- `PlcTag`, `ProgramBlock`, `LadderNetwork`, `Instruction` — tag table and LAD/SCL program model.
+- `ProjectValidator.Validate` — returns `Diagnostic` records with severity, code and location.
+- `ProjectSnapshot.Clone` — detached copy of all mutable lists; leaves share immutable records.
+- `PlcValues` — type range checks, `%I`/`%Q` helpers and TIA-style value formatting.
+- `DemoProject.Create` — the conveyor sample project.
+
+**Usage**
+
+```csharp
+using ControlSpace.Core;
+
+var project = DemoProject.Create();
+project.Tags.Add(new PlcTag("Alarm_Lamp", PlcType.Bool, "%Q0.2", Comment: "Alarm indicator"));
+
+foreach (var d in ProjectValidator.Validate(project))
+    Console.WriteLine($"{d.Severity} {d.Code}: {d.Message} ({d.Location})");
+
+var copy = ProjectSnapshot.Clone(project);   // detached lists, shared immutable records
+copy.Tags.RemoveAt(0);                       // does not affect `project`
+Console.WriteLine(PlcValues.Format(PlcType.Time, 2000));  // T#2000ms
+```
+
+### ControlSpace.Languages
+
+Compiles a `ControlProject` into a typed, interpreter-friendly program: LAD networks become contact paths and outputs, SCL blocks go through a bounded parser (IF/THEN/ELSE, arithmetic, comparisons, Boolean logic; no `eval` or code generation). Use it standalone to check programs or build other runtimes on the IR. Depends on `ControlSpace.Core`; no UI.
+
+```sh
+dotnet add package ControlSpace.Languages
+```
+
+**Key types**
+
+- `ProjectCompiler.Compile` — validates and compiles a project into a `CompilationResult`.
+- `CompilationResult` — `Program`, `Diagnostics` and `Success`.
+- `CompiledProgram` / `CompiledBlock` — symbol slots, compiled networks and SCL statements.
+- `SclParser` — SCL subset parser; `SclParser.RenameSymbol` performs token-aware renames.
+- `Expression`, `Statement` — the typed IR records (`BinaryExpression`, `IfStatement`, …).
+
+**Usage**
+
+```csharp
+using ControlSpace.Core;
+using ControlSpace.Languages;
+
+var result = ProjectCompiler.Compile(DemoProject.Create());
+foreach (var d in result.Diagnostics)
+    Console.WriteLine($"{d.Severity} {d.Code} at {d.Location}:{d.Line}:{d.Column} {d.Message}");
+
+if (result.Success)
+{
+    CompiledProgram program = result.Program!;
+    Console.WriteLine($"{program.Blocks.Count} blocks, {program.Symbols.Count} tag slots");
+}
+
+// Token-aware SCL rename: comments and longer names are left alone.
+string scl = SclParser.RenameSymbol("\"Motor_Run\" := TRUE; // Motor_Run_Old", "Motor_Run", "Conveyor_Run");
+```
+
+### ControlSpace.Simulation
+
+A deterministic virtual PLC that executes a compiled program in scan order with an input image, virtual forcing, TON/TOF/TP timers, CTU counters, rollback on faults and a bounded trace. Use it for headless tests of control logic. Depends on `ControlSpace.Core` and `ControlSpace.Languages`; no UI. Simulation only — never connect it to real machinery.
+
+```sh
+dotnet add package ControlSpace.Simulation
+```
+
+**Key types**
+
+- `VirtualPlc` — `Run`/`Stop`/`Reset`, `Step(TimeSpan)`, `SetInput`, `Force`/`Release`, `Read`.
+- `ScanSnapshot` — cycle, virtual time, state, value image and power flow of one scan.
+- `TraceBuffer` — bounded ring of `ScanSnapshot` samples (`VirtualPlc.Trace`).
+- `ControllerState` — `Stopped`, `Running` or `Faulted` (see `VirtualPlc.Fault`).
+
+**Usage**
 
 ```csharp
 using ControlSpace.Core;
@@ -83,8 +175,197 @@ var plc = new VirtualPlc(compilation.Program!);
 plc.SetInput("Start_PB", 1);
 plc.Run();
 plc.Step(TimeSpan.FromMilliseconds(100));
-Console.WriteLine(plc.Read("Motor_Run")); // 1 in the sample simulation
+Console.WriteLine(plc.Read("Motor_Run"));   // 1 in the sample simulation
+
+plc.Force("Stop_PB", 1);                     // virtual forcing, never real I/O
+plc.Step(TimeSpan.FromMilliseconds(100));
+Console.WriteLine($"{plc.State}, cycle {plc.Cycle}, {plc.Trace.Count} trace samples");
+plc.ReleaseAll();
 plc.Stop();
+```
+
+### ControlSpace.Storage
+
+Persistence for ControlSpace projects: versioned camelCase JSON with an 8 MiB import limit, duplicate-key rejection and validation on load, CSV tag import/export and an atomic write-then-replace save. Depends on `ControlSpace.Core`; no UI.
+
+```sh
+dotnet add package ControlSpace.Storage
+```
+
+**Key types**
+
+- `ProjectStorage.Serialize` / `Deserialize` — JSON round trip with limits and validation.
+- `ProjectStorage.SaveAtomicAsync` — writes a temporary file, then replaces the target.
+- `ProjectStorage.ExportTagsCsv` / `ImportTagsCsv` — tag-table interchange.
+- `ProjectStorage.MaximumBytes` — the import size limit.
+
+**Usage**
+
+```csharp
+using ControlSpace.Core;
+using ControlSpace.Storage;
+
+var project = DemoProject.Create();
+
+string json = ProjectStorage.Serialize(project);          // versioned camelCase JSON
+ControlProject loaded = ProjectStorage.Deserialize(json);  // limits, duplicate keys, validation
+await ProjectStorage.SaveAtomicAsync("Conveyor_Line.json", loaded);
+
+string csv = ProjectStorage.ExportTagsCsv(project.Tags);
+IReadOnlyList<PlcTag> tags = ProjectStorage.ImportTagsCsv(csv);
+```
+
+### ControlSpace.Engineering
+
+UI-independent editing on top of the model: every change is a validated transaction with undo/redo that invalidates compilation, tag renames update LAD operands, SCL source and HMI bindings, and dedicated editors cover program blocks, networks, contacts and tag tables. It also holds the workbench layout and open-editor state. Depends on Core, Languages, Simulation and Storage; no UI.
+
+```sh
+dotnet add package ControlSpace.Engineering
+```
+
+**Key types**
+
+- `Workspace` — current `Project`, `Edit`, `Undo`/`Redo`, `IsDirty`, `RenameTag`, `CrossReferences`, `Compile` and `Controller`.
+- `ProgramEditor` — add/duplicate/move blocks, networks, branches and contacts.
+- `TagTableEditor` — cell edits, add/delete, filtering/sorting and value parsing.
+- `TableClipboard` — tab-separated rectangular copy/paste.
+- `WorkbenchLayout` / `EditorSession` — persisted pane layout and open editor tabs.
+
+**Usage**
+
+```csharp
+using ControlSpace.Core;
+using ControlSpace.Engineering;
+
+var workspace = new Workspace(DemoProject.Create());
+workspace.Changed += (_, _) => Console.WriteLine($"rev {workspace.Project.Revision}, dirty {workspace.IsDirty}");
+
+// Validated transactions with undo/redo; references follow the rename.
+workspace.RenameTag("Motor_Run", "Conveyor_Run");
+new TagTableEditor(workspace).Add(PlcType.Int);
+var blocks = new ProgramEditor(workspace);
+string id = blocks.AddBlock(workspace.Project, "Diagnostics", BlockLanguage.SCL);
+workspace.Undo();
+
+foreach (var reference in workspace.CrossReferences("Conveyor_Run"))
+    Console.WriteLine($"{reference.Block}/{reference.Network} {(reference.Write ? "write" : "read")}");
+
+var result = workspace.Compile();   // creates workspace.Controller on success
+```
+
+### ControlSpace.Rendering.Skia
+
+Shared vector drawing for ladder networks, device topology, HMI screens and trace charts onto any `SKCanvas`, returning hit regions for interaction. Offscreen networks and contacts are culled and text runs are cached. Use it to render or export views without Uno. Depends on Core, Simulation and SkiaSharp 3.119; no UI framework.
+
+```sh
+dotnet add package ControlSpace.Rendering.Skia
+```
+
+**Key types**
+
+- `EngineeringRenderer` — `Ladder`, `Devices`, `Hmi` and `Trace` drawing; `SetFonts` for custom typefaces.
+- `RenderResult` / `HitRegion` — hit-test regions and content height of a drawn view.
+- `LadderLayout` — network positions, collapsed networks and visible ranges.
+
+**Usage**
+
+```csharp
+using ControlSpace.Core;
+using ControlSpace.Rendering.Skia;
+using SkiaSharp;
+
+var project = DemoProject.Create();
+var main = project.Blocks.First(b => b.Name == "Main");
+
+using var renderer = new EngineeringRenderer();
+using var surface = SKSurface.Create(new SKImageInfo(1200, 800));
+RenderResult result = renderer.Ladder(surface.Canvas, 1200, 800, main, project.Tags, snapshot: null);
+
+foreach (HitRegion hit in result.Hits)
+    Console.WriteLine($"{hit.Kind} {hit.Id} at {hit.Bounds}");
+
+using var png = surface.Snapshot().Encode(SKEncodedImageFormat.Png, 100);
+File.WriteAllBytes("main-ladder.png", png.ToArray());
+```
+
+### ControlSpace.Controls.Uno
+
+Reusable Uno Platform controls built on the engines: an `SKCanvasElement`-based engineering canvas for LAD, hardware, HMI and trace views, host-managed scrollbars, a virtualized editable tag table, project tree, block browser, editor bar, panes, splitters and theme. Use them to build your own engineering UI. Depends on Engineering, Rendering.Skia and `Uno.WinUI.Graphics2DSK`; requires Uno Platform (Skia renderer).
+
+```sh
+dotnet add package ControlSpace.Controls.Uno
+```
+
+**Key types**
+
+- `EngineeringCanvas` — `Project`, `Controller`, `Mode` (`EditorMode`), `BlockId`, `Zoom`, `Selected`/`EditRequested` events.
+- `EngineeringViewport` — wraps a canvas with scrollbars.
+- `EngineeringTable` — tag grid; `Bind(Workspace)` for undoable inline edits.
+- `ProjectTree` / `ProgramBlockBrowser` — project navigation (`SetProject`).
+- `EditorBar`, `WorkbenchPane`, `WorkbenchSplitter`, `EngineeringTheme` — shell chrome.
+
+**Usage**
+
+```csharp
+using ControlSpace.Controls.Uno;
+using ControlSpace.Core;
+using ControlSpace.Engineering;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+
+var workspace = new Workspace(DemoProject.Create());
+var canvas = new EngineeringCanvas { Project = workspace.Project, Mode = EditorMode.Ladder, BlockId = "main" };
+var tags = new EngineeringTable();
+tags.Bind(workspace);                       // inline edits become undoable transactions
+workspace.Changed += (_, _) => { canvas.Project = workspace.Project; canvas.Invalidate(); };
+
+var layout = new Grid();
+layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(2, GridUnitType.Star) });
+layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+layout.Children.Add(new EngineeringViewport(canvas));
+Grid.SetRow(tags, 1);
+layout.Children.Add(tags);
+
+var window = new Window { Title = "Ladder", Content = layout };
+window.Activate();
+```
+
+### ControlSpace.Workbench.Uno
+
+The complete TIA Portal-style workbench as one `UserControl`: menus, toolbars, project tree, editors, task cards, inspector, Portal view and simulation commands. Hosts provide file access through `IProjectFiles` and may also implement `IWorkbenchPreferences` on the same object to persist the window layout. Depends on `ControlSpace.Controls.Uno`; requires Uno Platform.
+
+```sh
+dotnet add package ControlSpace.Workbench.Uno
+```
+
+**Key types**
+
+- `WorkbenchView` — the workbench; `InitializeAsync`, `Navigate("block:main")`, `Workspace`, `Dispose`.
+- `IProjectFiles` — open/save pickers and draft recovery storage.
+- `IWorkbenchPreferences` — optional layout storage, kept separate from project files.
+
+**Usage**
+
+```csharp
+using ControlSpace.Workbench.Uno;
+using Microsoft.UI.Xaml;
+
+sealed class MemoryProjectFiles : IProjectFiles
+{
+    private string? _recovery;
+    public Task<string?> OpenAsync() => Task.FromResult<string?>(null);   // show a file picker here
+    public Task<bool> SaveAsync(string contents, string name, string extension = ".json") => Task.FromResult(true);
+    public Task<string?> ReadRecoveryAsync() => Task.FromResult(_recovery);
+    public Task WriteRecoveryAsync(string contents) { _recovery = contents; return Task.CompletedTask; }
+}
+
+// In Application.OnLaunched:
+var window = new Window { Title = "ControlSpace" };
+var workbench = new WorkbenchView(new MemoryProjectFiles());
+window.Content = workbench;
+window.Activate();
+await workbench.InitializeAsync();
+window.Closed += (_, _) => workbench.Dispose();
 ```
 
 ## Build and test
