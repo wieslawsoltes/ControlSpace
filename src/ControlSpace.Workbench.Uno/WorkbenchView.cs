@@ -18,6 +18,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     private readonly IProjectFiles _files;
     private readonly ProjectTree _tree = new();
     private readonly EngineeringCanvas _canvas = new();
+    private readonly EngineeringViewport _graphics;
     private readonly EngineeringTable _table = new();
     private readonly ContentControl _editor = new() { HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
     private readonly StackPanel _properties = new() { Spacing = 5, Padding = new Thickness(10, 6, 10, 6) };
@@ -35,14 +36,21 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     public Workspace Workspace => _workspace;
     public WorkbenchView(IProjectFiles files)
     {
-        _files = files; RequestedTheme = ElementTheme.Light;
+        _files = files; _graphics = new(_canvas); RequestedTheme = ElementTheme.Light;
         AutomationProperties.SetName(this, "ControlSpace engineering workspace");
         _table.Bind(_workspace);
         BuildShell();
         _workspace.Changed += WorkspaceChanged;
-        _tree.OpenRequested += target => Safe(() => Navigate(target));
+        _tree.OpenRequested += target => { if (target == "command:add-block") _ = EditBlockAsync(null); else Safe(() => Navigate(target)); };
+        _tree.BlockCommandRequested += ProgramCommand;
+        _programs.CommandRequested += ProgramCommand;
         _tree.SelectionChanged += text => _details.Text = text;
         _canvas.Selected += Select;
+        _canvas.EditRequested += id => _ = EditLadderAsync(id);
+        _canvas.ShortcutRequested += LadderCommand;
+        _canvas.ContextMenuRequested += LadderContext;
+        _canvas.InstructionDropped += (kind, id, snapshot) => ApplyLadderInstruction(kind, id, snapshot);
+        _canvas.ViewportChanged += () => _zoomLabel.Text = $"{_canvas.Zoom * 100:0}%";
         _canvas.MoveRequested += MoveObject;
         _canvas.HmiInput += (tag, value) => Safe(() => { EnsureController(); _workspace.Controller!.SetInput(tag, value ? 1 : 0); UpdateRuntime(); });
         _table.TagSelected += ShowTag;
@@ -63,10 +71,10 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         CaptureEditorState();
         if (_projectId != _workspace.Project.Id)
         {
-            _projectId = _workspace.Project.Id; _documents.Clear(); _editorStates.Clear();
+            _projectId = _workspace.Project.Id; _documents.Clear(); _editorStates.Clear(); _canvas.ResetProjectView();
             _view = _workspace.Project.Blocks.Count > 0 ? "block:" + _workspace.Project.Blocks[0].Id : "";
         }
-        foreach (var document in _documents.Documents.ToArray()) if (!IsValidView(document.Id)) _documents.Close(document.Id);
+        foreach (var document in _documents.Documents.ToArray()) if (!IsValidView(document.Id)) { _documents.Close(document.Id); _editorStates.Remove(document.Id); }
         if (!IsValidView(_view)) _view = _documents.ActiveId ?? "";
         _tree.SetProject(_workspace.Project); _title.Text = "ControlSpace — " + _workspace.Project.Name + (_workspace.IsDirty ? " *" : "");
         _canvas.Project = _workspace.Project; _canvas.Controller = _workspace.Controller; _canvas.HmiRuntime = _hmiRuntime;
@@ -102,14 +110,16 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
                 if (state is not null) _source.Select(Math.Clamp(state.Caret, 0, _source.Text.Length), 0);
                 Grid.SetRow(_source, 1); grid.Children.Add(_source); _editor.Content = grid;
             }
-            else { _canvas.Mode = EditorMode.Ladder; _canvas.BlockId = block.Id; RestoreCanvasState(); _editor.Content = _canvas; }
+            else { _canvas.Mode = EditorMode.Ladder; _canvas.BlockId = block.Id; RestoreCanvasState(); _editor.Content = _graphics; }
         }
         else if (_view is "tags" or "watch") { _table.SetTags(_workspace.Project.Tags, _workspace.Controller, _view == "watch"); _editor.Content = _table; }
         else if (_view == "references") { _table.SetReferences(_workspace.CrossReferences()); _editor.Content = _table; }
         else if (_view == "portal") ShowPortal();
         else if (_view == "diagnostics") ShowDiagnostics();
-        else if (_view is "library" or "blocks") ShowLibrary();
-        else { _canvas.Mode = _view == "devices" ? EditorMode.Devices : IsHmiView ? EditorMode.Hmi : EditorMode.Trace; _canvas.ScreenId = IsHmiView ? _view[4..] : ""; _editor.Content = _canvas; }
+        else if (_view == "blocks") { _programs.SetProject(_workspace.Project); _editor.Content = _programs; }
+        else if (_view == "library") ShowLibrary();
+        else { _canvas.Mode = _view == "devices" ? EditorMode.Devices : IsHmiView ? EditorMode.Hmi : EditorMode.Trace; _canvas.ScreenId = IsHmiView ? _view[4..] : ""; _editor.Content = _graphics; }
+        _graphics.Refresh();
         _tree.SetActive(_view);
         _canvas.Invalidate();
     }
@@ -146,21 +156,8 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     }
     private void Select(string id)
     {
-        _selection = id; SetInspector("Properties"); _properties.Children.Clear();
-        foreach (var block in _workspace.Project.Blocks) foreach (var network in block.Networks)
-        {
-            var instruction = network.Branches.SelectMany(x => x).Append(network.Output).FirstOrDefault(x => x.Id == id); if (instruction is null) continue;
-            _properties.Children.Add(Label("Instruction properties", 14, bold: true));
-            var kind = Choice("Instruction", instruction.Kind); var tag = Field("Operand tag", instruction.Tag); var parameter = Field("Parameter / preset (ms)", instruction.Parameter.ToString(CultureInfo.InvariantCulture)); var auxiliary = Field("Elapsed / reset tag", instruction.Auxiliary);
-            _properties.Children.Add(Button("Apply changes", () => Safe(() =>
-            {
-                var next = instruction with { Kind = (InstructionKind)kind.SelectedItem, Tag = tag.Text, Parameter = double.Parse(parameter.Text, CultureInfo.InvariantCulture), Auxiliary = auxiliary.Text };
-                _workspace.Edit("Edit instruction", p => { var n = p.Blocks.SelectMany(b => b.Networks).First(n => n.Id == network.Id); if (n.Output.Id == id) { var b = p.Blocks.First(b => b.Networks.Any(n => n.Id == network.Id)); int index = b.Networks.FindIndex(n => n.Id == network.Id); b.Networks[index] = n with { Output = next }; } else foreach (var path in n.Branches) { int index = path.FindIndex(i => i.Id == id); if (index >= 0) path[index] = next; } });
-            }), "apply-instruction"));
-            _properties.Children.Add(Button("Add parallel path", () => Safe(() => _workspace.Edit("Add branch", p => p.Blocks.SelectMany(b => b.Networks).First(n => n.Id == network.Id).Branches.Add([Instruction.Create(InstructionKind.Contact, "Start_PB")])))));
-            _properties.Children.Add(Button("Delete network", () => Safe(() => _workspace.Edit("Delete network", p => p.Blocks.First(b => b.Id == block.Id).Networks.RemoveAll(n => n.Id == network.Id)))));
-            return;
-        }
+        _selection = id; SetInspector("Properties", false); _properties.Children.Clear();
+        if (ShowLadderProperties(id)) return;
         var device = _workspace.Project.Devices.FirstOrDefault(d => d.Id == id);
         if (device is not null)
         {
@@ -192,20 +189,8 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         int index = p.Devices.FindIndex(d => d.Id == id); if (index >= 0) p.Devices[index] = p.Devices[index] with { X = point.X, Y = point.Y };
         else foreach (var screen in p.Screens) { int i = screen.Objects.FindIndex(o => o.Id == id); if (i >= 0) screen.Objects[i] = screen.Objects[i] with { X = Math.Clamp(point.X, 0, screen.Width - screen.Objects[i].Width), Y = Math.Clamp(point.Y, 0, screen.Height - screen.Objects[i].Height) }; }
     }));
-    private void AddNetwork() => Safe(() =>
-    {
-        string id = (_workspace.Project.Blocks.FirstOrDefault(b => _view == "block:" + b.Id && b.Language == BlockLanguage.LAD) ?? _workspace.Project.Blocks.First(b => b.Language == BlockLanguage.LAD)).Id;
-        _workspace.Edit("Add LAD network", p => { var block = p.Blocks.Find(b => b.Id == id && b.Language == BlockLanguage.LAD) ?? p.Blocks.First(b => b.Language == BlockLanguage.LAD); block.Networks.Add(LadderNetwork.Create("New network", [[Instruction.Create(InstructionKind.Contact, p.Tags.First(t => t.Type == PlcType.Bool).Name)]], Instruction.Create(InstructionKind.Coil, p.Tags.First(t => t.Type == PlcType.Bool && !PlcValues.IsInput(t.Address)).Name))); }); Navigate("block:" + id);
-    });
-    private void InsertContact(InstructionKind kind) => Safe(() =>
-    {
-        _workspace.Edit("Insert contact", p =>
-        {
-            var network = p.Blocks.SelectMany(b => b.Networks).FirstOrDefault(n => n.Output.Id == _selection || n.Branches.SelectMany(b => b).Any(i => i.Id == _selection)) ?? p.Blocks.SelectMany(b => b.Networks).First();
-            bool number = kind is InstructionKind.Greater or InstructionKind.Less or InstructionKind.Equal;
-            network.Branches[0].Add(Instruction.Create(kind, p.Tags.First(t => number ? t.Type != PlcType.Bool : t.Type == PlcType.Bool).Name));
-        });
-    });
+    private void AddNetwork() => LadderCommand("network-add");
+    private void InsertContact(InstructionKind kind) => ApplyLadderInstruction(kind);
     private void AddTag() => Safe(() => { CommitSource(); Navigate("tags"); _table.AddTag(); });
     private void AddDevice() => Safe(() => _workspace.Edit("Add virtual device", p =>
     {

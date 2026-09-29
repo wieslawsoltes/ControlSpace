@@ -27,6 +27,8 @@ jobs:
         run: dotnet run --project tests/ControlSpace.Workbench.Tests -c Release
       - name: Transactional tag table regressions
         run: dotnet run --project tests/ControlSpace.Table.Tests -c Release
+      - name: Program and ladder authoring regressions
+        run: dotnet run --project tests/ControlSpace.Program.Tests -c Release
       - name: JavaScript prototype engine regression tests
         run: npm test
       - name: Package reusable platform-neutral libraries

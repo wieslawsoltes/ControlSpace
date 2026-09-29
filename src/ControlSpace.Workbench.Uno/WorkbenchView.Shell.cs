@@ -12,7 +12,7 @@ namespace ControlSpace.Workbench.Uno;
 
 public sealed partial class WorkbenchView
 {
-    private sealed record EditorState(string BaseSource, string Source, int Caret, float Scroll, float Zoom);
+    private sealed record EditorState(string BaseSource, string Source, int Caret, float Scroll, float Zoom, float Horizontal = 0);
     private readonly EditorSession _documents = new();
     private readonly Dictionary<string, EditorState> _editorStates = [];
     private readonly EditorBar _editorBar = new();
@@ -46,8 +46,8 @@ public sealed partial class WorkbenchView
         var menu = new StackPanel { Orientation = Orientation.Horizontal, Background = Brush("E5E5E9") };
         AddMenu(menu, "Project", [("New project…", NewProject), ("Open…  Ctrl+O", () => _ = OpenAsync()), ("Save as…  Ctrl+S", () => _ = SaveAsync()), ("Export tag table…", () => _ = ExportTagsAsync()), ("Portal view", () => Navigate("portal"))]);
         AddMenu(menu, "Edit", [("Undo  Ctrl+Z", () => Safe(_workspace.Undo)), ("Redo  Ctrl+Y", () => Safe(_workspace.Redo)), ("Add network", AddNetwork), ("Add tag", AddTag)]);
-        AddMenu(menu, "View", [("Project tree  Ctrl+1", ToggleProject), ("Inspector window  Ctrl+2", ToggleInspector), ("Task cards  Ctrl+3", ToggleTasks), ("Devices & networks", () => Navigate("devices")), ("PLC tags", () => Navigate("tags")), ("HMI screens", () => Navigate("hmi")), ("Cross-references", () => Navigate("references"))]);
-        AddMenu(menu, "Insert", [("LAD network", AddNetwork), ("HMI lamp", () => AddHmi(HmiKind.Lamp)), ("HMI button", () => AddHmi(HmiKind.Button)), ("Virtual I/O station", AddDevice)]);
+        AddMenu(menu, "View", [("Program blocks", () => Navigate("blocks")), ("Project tree  Ctrl+1", ToggleProject), ("Inspector window  Ctrl+2", ToggleInspector), ("Task cards  Ctrl+3", ToggleTasks), ("Devices & networks", () => Navigate("devices")), ("PLC tags", () => Navigate("tags")), ("HMI screens", () => Navigate("hmi")), ("Cross-references", () => Navigate("references"))]);
+        AddMenu(menu, "Insert", [("Add new block…", () => _ = EditBlockAsync(null)), ("Program blocks", () => Navigate("blocks")), ("LAD network", AddNetwork), ("HMI lamp", () => AddHmi(HmiKind.Lamp)), ("HMI button", () => AddHmi(HmiKind.Button)), ("Virtual I/O station", AddDevice)]);
         AddMenu(menu, "Online", [("Start simulation  F5", Run), ("Stop simulation  Esc", Stop), ("Single scan", Step), ("Virtual CPU diagnostics", () => Navigate("diagnostics")), ("Watch and force table", () => Navigate("watch"))]);
         AddMenu(menu, "Options", [("Compile  F7", Compile), ("Cold reset simulation", ResetController), ("Compatibility and safety", About)]);
         AddMenu(menu, "Window", [("Maximize / restore work area", ToggleMaximize), ("Next editor  Ctrl+F6", () => CycleDocument(1)), ("Previous editor  Ctrl+Shift+F6", () => CycleDocument(-1)), ("Close editor  Ctrl+W", () => CloseDocument(_view)), ("Close all editors", CloseAllDocuments), ("Reset window layout", ResetLayout)]);
@@ -121,25 +121,29 @@ public sealed partial class WorkbenchView
         void Add(string text, Action action, string id) => _editorTools.Children.Add(Button(text, action, id));
         if (_view.StartsWith("block:") && _workspace.Project.Blocks.FirstOrDefault(b => "block:" + b.Id == _view)?.Language == BlockLanguage.LAD)
         {
-            Add("+ Network", AddNetwork, "add-network"); Add("─| |─", () => InsertContact(InstructionKind.Contact), "add-contact"); Add("─|/|─", () => InsertContact(InstructionKind.NegatedContact), "add-nc-contact");
+            Add("+ Network", AddNetwork, "add-network"); Add("NO", () => InsertContact(InstructionKind.Contact), "add-contact"); Add("NC", () => InsertContact(InstructionKind.NegatedContact), "add-nc-contact");
+            Add("Branch", () => LadderCommand("branch-add"), "ladder-branch");
+            Add("Collapse", () => _canvas.CollapseAll(true), "ladder-collapse-all"); Add("Expand", () => _canvas.CollapseAll(false), "ladder-expand-all");
+            Add("↑", () => LadderCommand("network-up"), "ladder-network-up"); Add("↓", () => LadderCommand("network-down"), "ladder-network-down");
             Add("−", () => ZoomCanvas(-.1f), "zoom-out"); Add("+", () => ZoomCanvas(.1f), "zoom-in"); Add("100%", () => { _canvas.Zoom = 1; ZoomCanvas(0); }, "zoom-reset");
         }
         else if (_view is "tags" or "watch") { Add("+ Add tag", AddTag, "add-tag"); Add("Export CSV", () => _ = ExportTagsAsync(), "table-export"); Add("Release all forces", () => { _workspace.Controller?.ReleaseAll(); UpdateRuntime(); }, "release-forces"); }
         else if (IsHmiView) { Add("Design", () => { _hmiRuntime = false; _canvas.HmiRuntime = false; _canvas.Invalidate(); }, "hmi-design"); Add("HMI runtime", () => { _hmiRuntime = true; _canvas.HmiRuntime = true; _canvas.Invalidate(); }, "hmi-runtime"); Add("+ Lamp", () => AddHmi(HmiKind.Lamp), "hmi-add-lamp"); Add("+ Button", () => AddHmi(HmiKind.Button), "hmi-add-button"); }
         else if (_view == "devices") { Add("Network view", () => Navigate("devices"), "network-view"); Add("+ Virtual I/O station", AddDevice, "add-device"); }
         else if (_source is not null || _view.StartsWith("block:")) Add("✓ Compile block / project", Compile, "compile-source");
+        if (_view.StartsWith("block:")) Add("Block properties…", () => _ = EditBlockAsync(_view[6..]), "block-properties");
         _editorTools.Children.Add(Label("  " + ViewTitle(_view), 11, "666676"));
     }
-    private void ZoomCanvas(float delta) { _canvas.Zoom = Math.Clamp(_canvas.Zoom + delta, .5f, 2); _zoomLabel.Text = $"{_canvas.Zoom * 100:0}%"; _canvas.Invalidate(); }
+    private void ZoomCanvas(float delta) { _canvas.ChangeView(zoom: _canvas.Zoom + delta); _zoomLabel.Text = $"{_canvas.Zoom * 100:0}%"; }
     private void ShowPalette()
     {
         _palette.Children.Clear(); if (_taskPane is null) return;
         _taskPane.SetTitle(_layout.TaskCard == "Instructions" ? IsHmiView ? "Toolbox" : _view == "devices" ? "Hardware catalog" : "Instructions" : _layout.TaskCard);
         void Section(string text) => _palette.Children.Add(Header("▾  " + text));
-        void Item(string text, Action action)
+        void Item(string text, Action action, InstructionKind? instruction = null)
         {
             if (_paletteFilter.Length > 0 && !text.Contains(_paletteFilter, StringComparison.OrdinalIgnoreCase)) return;
-            var b = Button(text, action, "palette-" + text); b.HorizontalAlignment = HorizontalAlignment.Stretch; b.HorizontalContentAlignment = HorizontalAlignment.Left; b.BorderThickness = new Thickness(0); b.Background = Brush("F2F2F4"); b.MinHeight = 24; b.Padding = new Thickness(17, 2, 5, 2); _palette.Children.Add(b);
+            var b = Button(text, action, "palette-" + text); b.HorizontalAlignment = HorizontalAlignment.Stretch; b.HorizontalContentAlignment = HorizontalAlignment.Left; b.BorderThickness = new Thickness(0); b.Background = Brush("F2F2F4"); b.MinHeight = 24; b.Padding = new Thickness(17, 2, 5, 2); if (instruction is InstructionKind k) ConfigureInstructionDrag(b, k); _palette.Children.Add(b);
         }
         if (_layout.TaskCard == "Testing") { Section("Virtual CPU"); Item("Start simulation", Run); Item("Stop simulation", Stop); Item("Single scan", Step); Item("Watch and force table", () => Navigate("watch")); Item("Trace", () => Navigate("trace")); Item("Online & diagnostics", () => Navigate("diagnostics")); }
         else if (_layout.TaskCard == "Libraries") { Section("Project library"); foreach (var b in _workspace.Project.Blocks) Item(b.Name + " [" + b.Language + "]", () => Navigate("block:" + b.Id)); Section("Screens"); foreach (var screen in _workspace.Project.Screens) Item(screen.Name, () => Navigate("hmi:" + screen.Id)); }
@@ -148,16 +152,16 @@ public sealed partial class WorkbenchView
         else
         {
             Section("Basic instructions"); _palette.Children.Add(Label("  ▾  Bit logic operations", 12, bold: true));
-            foreach (var (name, kind) in new[] { ("Normally open contact", InstructionKind.Contact), ("Normally closed contact", InstructionKind.NegatedContact), ("Positive edge", InstructionKind.RisingEdge), ("Negative edge", InstructionKind.FallingEdge) }) Item(name, () => InsertContact(kind));
-            Section("Comparator operations"); foreach (var kind in new[] { InstructionKind.Greater, InstructionKind.Less, InstructionKind.Equal }) { var k = kind; Item(k.ToString(), () => InsertContact(k)); }
+            foreach (var (name, kind) in new[] { ("Normally open contact", InstructionKind.Contact), ("Normally closed contact", InstructionKind.NegatedContact), ("Positive edge", InstructionKind.RisingEdge), ("Negative edge", InstructionKind.FallingEdge) }) Item(name, () => InsertContact(kind), kind);
+            Section("Comparator operations"); foreach (var kind in new[] { InstructionKind.Greater, InstructionKind.Less, InstructionKind.Equal }) { var k = kind; Item(k.ToString(), () => InsertContact(k), k); }
             Section("Network operations"); Item("Insert network", AddNetwork); Item("Compile program", Compile);
-            Section("Timers / counters / coils"); _palette.Children.Add(Label("Select a network output to change its\ninstruction, preset and operand bindings.", 11, "696977"));
+            Section("Coils / timers / counters"); foreach (var kind in Enum.GetValues<InstructionKind>().Where(LadderInstructions.IsOutput)) { var k = kind; Item(InstructionCaption(k), () => ApplyLadderInstruction(k), k); }
         }
         var note = Label("Simulation only. No physical device connection.", 10, "73666B"); note.TextWrapping = TextWrapping.Wrap; note.Margin = new Thickness(4, 16, 4, 4); _palette.Children.Add(note);
     }
-    private void SetInspector(string tab)
+    private void SetInspector(string tab, bool reveal = true)
     {
-        _maximized = false; _layout = _layout with { InspectorTab = tab, InspectorVisible = true };
+        if (reveal) _maximized = false; _layout = _layout with { InspectorTab = tab, InspectorVisible = reveal || _layout.InspectorVisible };
         foreach (var item in _inspectorTabs) item.Value.Background = Brush(item.Key == tab ? "FFFFFF" : "D5D5DC");
         _inspectorContent.Content = tab == "Properties" ? _propertyHost : _infoHost;
         if (tab == "Diagnostics") { _messages.Children.Clear(); var c = _workspace.Controller; foreach (string text in new[] { "Virtual CPU / in-process simulation", "State: " + (c?.State.ToString() ?? "Not compiled"), "Fault: " + (c?.Fault ?? "None"), "Active forces: " + (c?.Forces.Count ?? 0), "No hardware connection. No real-time or safety certification." }) _messages.Children.Add(Label(text, 12)); }
@@ -210,9 +214,9 @@ public sealed partial class WorkbenchView
     {
         if (_view.Length == 0) return;
         if (_source is not null) _editorStates[_view] = new(_sourceBase, _source.Text, _source.SelectionStart, 0, 1);
-        else if (_canvas.Mode == EditorMode.Ladder && _editor.Content == _canvas) _editorStates[_view] = new("", "", 0, _canvas.ScrollOffset, _canvas.Zoom);
+        else if (_canvas.Mode == EditorMode.Ladder && _editor.Content == _graphics) _editorStates[_view] = new("", "", 0, _canvas.ScrollOffset, _canvas.Zoom, _canvas.HorizontalOffset);
     }
-    private void RestoreCanvasState() { var state = _editorStates.GetValueOrDefault(_view); _canvas.ScrollOffset = state?.Scroll ?? 0; _canvas.Zoom = state?.Zoom ?? 1; _zoomLabel.Text = $"{_canvas.Zoom * 100:0}%"; }
+    private void RestoreCanvasState() { var state = _editorStates.GetValueOrDefault(_view); _canvas.ScrollOffset = state?.Scroll ?? 0; _canvas.HorizontalOffset = state?.Horizontal ?? 0; _canvas.Zoom = state?.Zoom ?? 1; _zoomLabel.Text = $"{_canvas.Zoom * 100:0}%"; }
     private void UpdateDocuments() { if (_view.Length > 0 && IsValidView(_view)) _documents.Open(_view, ViewTitle(_view)); _editorBar.SetDocuments(_documents.Documents, _documents.ActiveId); }
     private bool IsValidView(string id) => id.StartsWith("block:") ? _workspace.Project.Blocks.Any(b => "block:" + b.Id == id) : id.StartsWith("hmi:") ? _workspace.Project.Screens.Any(s => "hmi:" + s.Id == id) : id is "tags" or "watch" or "devices" or "references" or "diagnostics" or "library" or "trace" or "blocks";
     private string ViewTitle(string id) => id.StartsWith("block:") ? _workspace.Project.Blocks.FirstOrDefault(b => "block:" + b.Id == id) is ProgramBlock b ? b.Name + " [" + (b.Language == BlockLanguage.LAD ? "OB" : "FC") + b.Number + "]" : "Program block" : id.StartsWith("hmi:") ? _workspace.Project.Screens.FirstOrDefault(s => "hmi:" + s.Id == id)?.Name ?? "HMI screen" : id switch { "tags" => "Default tag table", "watch" => "Watch table_1", "devices" => "Devices & networks", "references" => "Cross-references", "diagnostics" => "Online & diagnostics", "trace" => "Trace", "library" => "Project library", "blocks" => "Program blocks", _ => "Work area" };

@@ -18,6 +18,7 @@ public sealed class ProjectTree : UserControl
     private string? _active, _selected;
     public event Action<string>? OpenRequested;
     public event Action<string>? SelectionChanged;
+    public event Action<string, string?>? BlockCommandRequested;
     public ProjectTree()
     {
         var root = new Grid(); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
@@ -47,6 +48,8 @@ public sealed class ProjectTree : UserControl
         Add("plc", (plc?.Name ?? "PLC_1") + " [virtual CPU]", null, 1, "▣", true);
         Add("config", "Device configuration", "devices", 2, "▦"); Add("online", "Online & diagnostics", "diagnostics", 2, "◉");
         Add("blocks", "Program blocks", null, 2, "▱", true);
+        Add("add-block", "Add new block", "command:add-block", 3, "+");
+        Add("block-overview", "Block overview", "blocks", 3, "▤");
         foreach (var b in p.Blocks) Add("block:" + b.Id, b.Name + " [" + (b.Language == BlockLanguage.LAD ? "OB" : "FC") + b.Number + "]", "block:" + b.Id, 3, b.Language == BlockLanguage.LAD ? "◇" : "≡");
         Add("tag-folder", "PLC tags", null, 2, "▱", true); Add("tags", "Default tag table [" + p.Tags.Count + "]", "tags", 3, "▤");
         Add("watch-folder", "Watch and force tables", null, 2, "▱", true); Add("watch", "Watch table_1", "watch", 3, "▤");
@@ -90,6 +93,13 @@ public sealed class ProjectTree : UserControl
                 else return;
                 if (_visible.Count > 0) _visible[Math.Clamp(next, 0, _visible.Count - 1)].Button.Focus(FocusState.Keyboard); e.Handled = true;
             };
+            if (entry.Target?.StartsWith("block:", StringComparison.Ordinal) == true)
+            {
+                string blockId = entry.Target[6..]; var menu = new MenuFlyout();
+                foreach (var (caption, command) in new[] { ("Open", "open"), ("Properties…", "properties"), ("Duplicate", "duplicate"), ("Delete…", "delete"), ("Move up in scan order", "up"), ("Move down in scan order", "down") })
+                { var item = new MenuFlyoutItem { Text = caption }; item.Click += (_, _) => BlockCommandRequested?.Invoke(command, blockId); menu.Items.Add(item); }
+                button.ContextFlyout = menu;
+            }
             _visible.Add((entry, button)); _rows.Children.Add(button);
         }
         if (_visible.Count == 0) _rows.Children.Add(Label("  No matching project objects", 11, "686875"));
