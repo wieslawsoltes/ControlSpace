@@ -259,7 +259,7 @@ var result = workspace.Compile();   // creates workspace.Controller on success
 
 ### ControlSpace.Rendering.Skia
 
-Shared vector drawing for ladder networks, device topology, HMI screens and trace charts onto any `SKCanvas`, returning hit regions for interaction. Offscreen networks and contacts are culled and text runs are cached. Use it to render or export views without Uno. Depends on Core, Simulation and SkiaSharp 3.119; no UI framework.
+Shared vector drawing for ladder networks, device topology, HMI screens and trace charts onto any `SKCanvas`, returning hit regions for interaction. Offscreen networks and contacts are culled and text runs are cached. Use it to render or export views without Uno. Depends on Core, Simulation and SkiaSharp 4.153; no UI framework.
 
 ```sh
 dotnet add package ControlSpace.Rendering.Skia
@@ -374,7 +374,7 @@ window.Closed += (_, _) => workbench.Dispose();
 
 ## Build and test
 
-Use .NET 10 and the native platform prerequisites required by Uno. `global.json` selects **Uno.Sdk 6.7.30**, with **SkiaSharp 3.119.2** matched to its graphics integration. This is a compatible host-rendering choice, not a universal fastest-backend claim.
+Use .NET 10 and the native platform prerequisites required by Uno. `global.json` selects **Uno.Sdk 6.7.30**, with **SkiaSharp 4.153.0** selected through the shared `SkiaSharpVersion` property. This aligns Uno-managed native assets, the reusable renderer, native tests and benchmarks; embedding Uno hosts must select the same version. This is a compatible host-rendering choice, not a universal fastest-backend claim.
 
 ```sh
 # Platform-neutral engines and workbench state.

@@ -8,7 +8,7 @@ The .NET source references the following external projects. Their packages are r
 |---|---|---|
 | Uno Platform / Uno.Sdk | SDK 6.7.30 | Apache-2.0; cross-platform WinUI-compatible hosting |
 | Uno.WinUI.Graphics2DSK | 6.7.135 | Uno Platform licensing; host-backed Skia canvas integration |
-| SkiaSharp | 3.119.2 | MIT for bindings; underlying Skia and native dependencies retain their own notices |
+| SkiaSharp | 4.153.0 | MIT for bindings; underlying Skia and native dependencies retain their own notices |
 | .NET | 10 | .NET runtime/SDK distribution licenses and notices |
 | Playwright | test tool | Apache-2.0; browser automation only, not shipped as application code |
 
