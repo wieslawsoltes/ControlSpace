@@ -88,7 +88,7 @@ internal static class HmiShapeTests
         Test("line tolerance uses constant view pixels after zoom conversion", () =>
         {
             var line = Shape(HmiKind.Line) with { Height = 1 };
-            foreach (double zoom in new[] { .1, .5, 1, 4 })
+            foreach (double zoom in new[] { .001, .01, .1, .5, 1, 4 })
             {
                 Check(HmiShapeGeometry.Contains(line, new(100, 40.5 + 3 / zoom), 4 / zoom));
                 Check(!HmiShapeGeometry.Contains(line, new(100, 40.5 + 8 / zoom), 4 / zoom));

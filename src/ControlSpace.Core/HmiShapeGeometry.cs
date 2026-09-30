@@ -31,7 +31,9 @@ public static class HmiShapeGeometry
             double nx = 2 * (x / item.Width) - 1, ny = 2 * (y / item.Height) - 1;
             return nx * nx + ny * ny <= 1 + 1e-12;
         }
-        lineTolerance = double.IsFinite(lineTolerance) ? Math.Clamp(lineTolerance, 0, 100) : 0;
+        // Fit can shrink an 8192-pixel screen far below manual zoom limits.
+        // Keep the view-pixel tolerance after conversion, bounded by supported screen size.
+        lineTolerance = double.IsFinite(lineTolerance) ? Math.Clamp(lineTolerance, 0, 8192) : 0;
         var (start, end, stroke) = Line(item);
         double tolerance = Math.Max(stroke / 2, lineTolerance);
         if (x < -tolerance || y < -tolerance || x > item.Width + tolerance || y > item.Height + tolerance) return false;
