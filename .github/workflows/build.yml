@@ -42,14 +42,14 @@ jobs:
           for library in Core Languages Simulation Storage Engineering Rendering.Skia; do
             dotnet pack "src/ControlSpace.$library" -c Release -o artifacts/packages
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: portable-packages
           path: artifacts/packages/*.nupkg
       - name: Archive exact tested sources
         if: always()
         run: mkdir -p artifacts && git archive --format=zip -o artifacts/ControlSpace-source.zip HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: source-snapshot
@@ -85,7 +85,7 @@ jobs:
         run: |
           python tools/bundle-prototype.py
           python tests/browser/prototype_test.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: prototype-browser-verification
@@ -117,7 +117,7 @@ jobs:
           dotnet run --project tools/ControlSpace.Benchmarks -c Release -- "$GITHUB_SHA" "$PWD/artifacts/performance/after.json"
           python tools/compare-benchmarks.py artifacts/performance/before.json artifacts/performance/after.json artifacts/performance/comparison.md
           cat artifacts/performance/comparison.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: performance-comparison

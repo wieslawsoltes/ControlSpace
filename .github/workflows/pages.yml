@@ -71,7 +71,7 @@ jobs:
         run: |
           mkdir -p artifacts/site/docs/uno
           cp artifacts/uno-verification/uno-*.png artifacts/site/docs/uno/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: uno-browser-verification
@@ -79,7 +79,7 @@ jobs:
             artifacts/uno-verification/
             artifacts/server.log
             artifacts/packages/*.nupkg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           if-no-files-found: ignore
