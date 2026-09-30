@@ -69,9 +69,11 @@ async def main():
             await click('run')
             await wait('window.controlSpaceVerification.cycle>=4')
             before = await state()
-            await page.wait_for_timeout(1100)
+            # Count completed virtual scans; shared-runner wall-clock scheduling
+            # is not the performance mechanism under test. Keep a bounded wait.
+            await wait(f"window.controlSpaceVerification.cycle>={before['cycle'] + 10}")
             after = await state()
-            assert after['cycle'] >= before['cycle'] + 5
+            assert after['cycle'] >= before['cycle'] + 10
             assert after['performance']['paintCount'] - before['performance']['paintCount'] <= 1
             assert after['performance']['snapshotCopies'] == 0
             samples['staticRun'] = {'before': before['performance'], 'after': after['performance'], 'cycles': after['cycle'] - before['cycle']}
@@ -104,9 +106,9 @@ async def main():
             await click('run')
             await wait('window.controlSpaceVerification.cycle>3')
             before = await state()
-            await page.wait_for_timeout(1000)
+            await wait(f"window.controlSpaceVerification.cycle>={before['cycle'] + 10}")
             after = await state()
-            assert after['cycle'] > before['cycle']
+            assert after['cycle'] >= before['cycle'] + 10
             assert after['performance']['paintCount'] == before['performance']['paintCount']
             assert after['performance']['renderRequests'] == before['performance']['renderRequests']
             await click('stop')
@@ -139,7 +141,8 @@ async def main():
             final = await state()
             (args.output / 'performance-ui.json').write_text(json.dumps({
                 'checks': checks, 'errors': errors, 'console': logs, 'samples': samples,
-                'failure': failure, 'finalPerformance': (final or {}).get('performance')
+                'failure': failure, 'finalPerformance': (final or {}).get('performance'),
+                'finalCycle': (final or {}).get('cycle'), 'finalState': (final or {}).get('state')
             }, indent=2) + '\n')
             print(f'Uno performance mechanism workflows: {len(checks)} passed', flush=True)
             await browser.close()

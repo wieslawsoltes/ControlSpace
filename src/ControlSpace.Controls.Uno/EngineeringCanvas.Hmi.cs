@@ -87,7 +87,14 @@ public sealed partial class EngineeringCanvas
         if (pressed) HmiRuntimeChanged?.Invoke(); if (active) RequestRender();
     }
     private PointD HmiPoint(Point point) => HmiTransform.ToScreen(new(point.X, point.Y));
-    private string? HmiHit(PointD point) => HmiScreen?.Objects.LastOrDefault(o => HmiEditor.Bounds(o).Contains(point.X, point.Y))?.Id;
+    private string? HmiHit(PointD point)
+    {
+        if (HmiScreen is not { } screen) return null;
+        double tolerance = 4 / HmiTransform.Scale;
+        for (int i = screen.Objects.Count - 1; i >= 0; i--)
+            if (HmiShapeGeometry.Contains(screen.Objects[i], point, tolerance)) return screen.Objects[i].Id;
+        return null;
+    }
     public IReadOnlyList<(string Handle, RectD Bounds)> HmiHandles()
     {
         if (HmiRuntime || HmiScreen is not { } screen || _hmiSelection.Count == 0) return [];

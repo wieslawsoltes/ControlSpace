@@ -211,6 +211,10 @@ public sealed partial class EngineeringRenderer : IDisposable
             hits.Add(new(o.Id, "hmi", new(24 + x * scale, 24 + y * scale, w * scale, h * scale)));
             switch (o.Kind)
             {
+                case HmiKind.Rectangle:
+                case HmiKind.Ellipse:
+                case HmiKind.Line:
+                    DrawHmiShape(canvas, o, color); break;
                 case HmiKind.Label: Text(canvas, o.Text, x, y + h * .72f, color, h > 35 ? 26 : 15, h > 35); break;
                 case HmiKind.Button:
                     Box(canvas, x, y, w, h, value != 0 ? Active : color); Text(canvas, o.Text, x + 24, y + h / 2 + 6, SKColors.White, 17, true); break;
