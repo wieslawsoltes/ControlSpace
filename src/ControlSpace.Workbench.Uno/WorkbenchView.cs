@@ -68,7 +68,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     private void WorkspaceChanged(object? sender, EventArgs e) => Refresh();
     private void Refresh()
     {
-        CaptureEditorState();
+        ValidateHmiSession(); CaptureEditorState();
         if (_projectId != _workspace.Project.Id)
         {
             _projectId = _workspace.Project.Id; _documents.Clear(); _editorStates.Clear(); _canvas.ResetProjectView();
@@ -86,7 +86,7 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     public void Navigate(string view)
     {
         CommitSource(); CaptureEditorState();
-        if (view != _view) { _canvas.CancelHmiInteraction(); _hmiRuntime = false; _canvas.HmiRuntime = false; }
+        if (view != _view) { _canvas.CancelHmiInteraction(); if (!_hmiRuntimeNavigation) EndHmiRuntime(); }
         if (view == "portal") { ShowPortal(); return; }
         _portal.Visibility = Visibility.Collapsed; _body.Visibility = Visibility.Visible; _projectDrawer = _taskDrawer = false;
         _view = view == "hmi" ? FirstHmiView() : view; _selection = ""; _canvas.Selection = null;
@@ -221,9 +221,9 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     private void Compile() => Safe(() => { _canvas.CancelHmiInteraction(); CommitSource(); _workspace.Compile(); SetInspector("Info"); ShowCompilation(); });
     private void EnsureController() { CommitSource(); if (_workspace.Controller is null) { if (!_workspace.Compile().Success) throw new InvalidOperationException("Compilation failed. Review diagnostics."); } }
     private void Run() => Safe(() => { EnsureController(); _workspace.Controller!.Run(); _scan.Start(); ShowInputs(); UpdateRuntime(); });
-    private void Stop() { _canvas.CancelHmiInteraction(); _scan.Stop(); _workspace.Controller?.Stop(); UpdateRuntime(); }
+    private void Stop() { SuspendHmiInput(); _scan.Stop(); _workspace.Controller?.Stop(); UpdateRuntime(); }
     private void Step() => Safe(() => { EnsureController(); _workspace.Controller!.Step(TimeSpan.FromMilliseconds(100), true); UpdateRuntime(); });
-    private void ResetController() { _canvas.CancelHmiInteraction(); _scan.Stop(); _workspace.Controller?.Reset(); UpdateRuntime(); }
+    private void ResetController() { SuspendHmiInput(); _scan.Stop(); _workspace.Controller?.Reset(); UpdateRuntime(); }
     private void ShowCompilation()
     {
         _messages.Children.Clear(); var diagnostics = _workspace.Compilation?.Diagnostics;
@@ -283,5 +283,5 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
 #if __WASM__
         _verificationTimer?.Stop();
 #endif
- _scan.Stop(); _autosave.Stop(); _layoutTimer.Stop(); _workspace.Changed -= WorkspaceChanged; _table.Unbind(); _canvas.Dispose(); }
+ EndHmiRuntime(); _scan.Stop(); _autosave.Stop(); _layoutTimer.Stop(); _workspace.Changed -= WorkspaceChanged; _table.Unbind(); _canvas.Dispose(); }
 }

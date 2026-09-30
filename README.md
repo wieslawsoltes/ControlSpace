@@ -28,6 +28,10 @@ The Uno tag editor now has a compact, virtualized grid with inline editing, rect
 
 Create, organize and duplicate LAD/SCL blocks from the project tree or block directory. Edit network titles/comments, contacts, flat parallel branches and typed operands through dialogs, context menus and keyboard commands. Collapsible networks, two-axis scrolling and packaged renderer fonts keep long rungs readable. See the [program-editing guide](docs/program-editing.md) for commands, reuse and model boundaries.
 
+## Configurable HMI runtime
+
+Use **Runtime settings…** for confirmed numeric input, configured ranges/decimals/units, one-shot bit/value actions and screen navigation in the virtual controller. These options are separate from project edits and simulated forcing. See the [runtime guide](docs/hmi-runtime.md), [operator sample](samples/hmi-runtime.controlspace.json), and commit-specific checks before treating a revision as qualified.
+
 ## Engineering workflows
 
 | Area | Implemented scope |

@@ -209,7 +209,8 @@ public sealed partial class EngineeringRenderer : IDisposable
             float x = (float)o.X, y = (float)o.Y, w = (float)o.Width, h = (float)o.Height; var color = SKColor.TryParse(o.Color, out var parsed) ? parsed : Teal;
             int slot = _slotLookup.GetValueOrDefault(o.Tag, -1); double value = slot < 0 ? 0 : snapshot is not null && slot < snapshot.ValueCount ? snapshot.ReadValue(slot) : tags[slot].InitialValue;
             hits.Add(new(o.Id, "hmi", new(24 + x * scale, 24 + y * scale, w * scale, h * scale)));
-            switch (o.Kind)
+            if (o.Runtime is not null && HmiRuntimeRules.IsNumeric(o.Kind)) DrawConfiguredHmiNumeric(canvas, o, value, color, runtime);
+            else switch (o.Kind)
             {
                 case HmiKind.Rectangle:
                 case HmiKind.Ellipse:
