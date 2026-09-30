@@ -17,7 +17,7 @@ public static partial class ProjectValidator
         if (p.Tags is null || p.Blocks is null || p.Devices is null || p.Links is null || p.Screens is null) { Error("CS003", "Project collections cannot be null."); return d; }
         if (p.Tags.Count > 10000 || p.Blocks.Count > 1000 || p.Devices.Count > 2000 || p.Screens.Count > 1000 || p.Links.Count > 10000) { Error("CS004", "Project exceeds supported resource limits."); return d; }
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var memory = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var memory = new List<(string Area, int Start, int End, string Name)> (p.Tags.Count);
         foreach (var t in p.Tags)
         {
             if (t is null) { Error("CS005", "Null tag."); continue; }
@@ -31,12 +31,16 @@ public static partial class ProjectValidator
             if (t.Type == PlcType.Bool ? (!bit || width.Length != 0) : bit || width != (t.Type == PlcType.Int ? "W" : "D")) Error("CS013", "Address width does not match tag type.", t.Name);
             int start = int.Parse(match.Groups[3].Value) * 8 + (bit ? int.Parse(match.Groups[4].Value) : 0);
             int bits = bit ? 1 : width == "W" ? 16 : 32;
-            for (int i = start; i < start + bits; i++)
-            {
-                var key = prefix + i;
-                if (memory.TryGetValue(key, out var existing)) { Error("CS014", $"Address overlaps '{existing}'.", t.Name); break; }
-                memory[key] = t.Name;
-            }
+            memory.Add((prefix, start, start + bits, t.Name ?? ""));
+        }
+        // Sort integer intervals rather than allocating up to 32 string-key entries per tag.
+        memory.Sort(static (a, b) => { int area = string.CompareOrdinal(a.Area, b.Area); return area != 0 ? area : a.Start.CompareTo(b.Start); });
+        string previousArea = "", previousName = ""; int end = -1;
+        foreach (var address in memory)
+        {
+            if (address.Area != previousArea) { previousArea = address.Area; end = -1; }
+            if (address.Start < end) Error("CS014", $"Address overlaps '{previousName}'.", address.Name);
+            if (address.End > end) { end = address.End; previousName = address.Name; }
         }
         var ids = new HashSet<string>(StringComparer.Ordinal);
         void Id(string? id) { if (string.IsNullOrWhiteSpace(id) || !ids.Add(id)) Error("CS020", "Object IDs must be nonempty and unique.", id ?? ""); }
@@ -94,6 +98,7 @@ public static partial class ProjectValidator
                 if (!double.IsFinite(o.X) || !double.IsFinite(o.Y) || !double.IsFinite(o.Width) || !double.IsFinite(o.Height) || o.Width is <= 0 or > 8192 || o.Height is <= 0 or > 8192 || o.X < 0 || o.Y < 0 || o.X + o.Width > screen.Width || o.Y + o.Height > screen.Height) Error("CS043", "Invalid HMI geometry.", o.Id);
                 if (o.Text is null || o.Tag is null || o.Color is null || !Regex.IsMatch(o.Color, "^#[0-9A-Fa-f]{6}$")) Error("CS043", "Invalid HMI object text, binding or color.", o.Id);
                 if (!Enum.IsDefined(o.Kind)) Error("CS044", "Unsupported HMI object.", o.Id);
+                if (HmiShapeGeometry.IsShape(o.Kind) && !string.IsNullOrEmpty(o.Tag)) Error("CS046", "Basic HMI shapes do not have a tag binding.", o.Id);
                 if (!string.IsNullOrEmpty(o.Tag) && !names.Contains(o.Tag)) Error("CS045", "HMI tag does not exist.", o.Id);
             }
         }

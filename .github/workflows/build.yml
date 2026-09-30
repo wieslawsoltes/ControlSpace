@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
       - uses: actions/setup-node@v4
@@ -27,8 +27,14 @@ jobs:
         run: dotnet run --project tests/ControlSpace.Workbench.Tests -c Release
       - name: Transactional tag table regressions
         run: dotnet run --project tests/ControlSpace.Table.Tests -c Release
+      - name: Project navigation regressions
+        run: dotnet run --project tests/ControlSpace.Navigation.Tests -c Release
+      - name: HMI authoring and rendering regressions
+        run: dotnet run --project tests/ControlSpace.Hmi.Tests -c Release
       - name: Program and ladder authoring regressions
         run: dotnet run --project tests/ControlSpace.Program.Tests -c Release
+      - name: Allocation, rendering and snapshot regression tests
+        run: dotnet run --project tests/ControlSpace.Performance.Tests -c Release
       - name: JavaScript prototype engine regression tests
         run: npm test
       - name: Package reusable platform-neutral libraries
@@ -36,14 +42,14 @@ jobs:
           for library in Core Languages Simulation Storage Engineering Rendering.Skia; do
             dotnet pack "src/ControlSpace.$library" -c Release -o artifacts/packages
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: portable-packages
           path: artifacts/packages/*.nupkg
       - name: Archive exact tested sources
         if: always()
         run: mkdir -p artifacts && git archive --format=zip -o artifacts/ControlSpace-source.zip HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: source-snapshot
@@ -56,8 +62,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
       - name: Build Uno Skia desktop workspace
@@ -66,11 +72,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: python -m pip install playwright==1.55.0
@@ -79,7 +85,7 @@ jobs:
         run: |
           python tools/bundle-prototype.py
           python tests/browser/prototype_test.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: prototype-browser-verification
@@ -87,3 +93,32 @@ jobs:
             artifacts/browser-report.json
             artifacts/ControlSpace-prototype.html
             docs/images/*.png
+
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compare identical benchmark harness against pinned baseline
+        env:
+          BASELINE: 4ec2bd939d9a712ce7e87e1e248f339d256c25c7
+          DOTNET_TieredCompilation: '0'
+        run: |
+          mkdir -p artifacts/performance
+          git worktree add --detach "$RUNNER_TEMP/controlspace-baseline" "$BASELINE"
+          mkdir -p "$RUNNER_TEMP/controlspace-baseline/tools"
+          cp -R tools/ControlSpace.Benchmarks "$RUNNER_TEMP/controlspace-baseline/tools/"
+          dotnet run --project "$RUNNER_TEMP/controlspace-baseline/tools/ControlSpace.Benchmarks" -c Release -- "$BASELINE" "$PWD/artifacts/performance/before.json"
+          dotnet run --project tools/ControlSpace.Benchmarks -c Release -- "$GITHUB_SHA" "$PWD/artifacts/performance/after.json"
+          python tools/compare-benchmarks.py artifacts/performance/before.json artifacts/performance/after.json artifacts/performance/comparison.md
+          cat artifacts/performance/comparison.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: performance-comparison
+          path: artifacts/performance/

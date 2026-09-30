@@ -11,7 +11,8 @@ public sealed partial class WorkbenchView
 {
     private void ShowPalette()
     {
-        _palette.Children.Clear(); if (_taskPane is null) return;
+        if (_taskPane is null || !PaletteChanged()) return;
+        _palette.Children.Clear(); PaletteBuilds++;
         _taskPane.SetTitle(_layout.TaskCard == "Instructions" ? IsHmiView ? "Toolbox" : _view == "devices" ? "Hardware catalog" : "Instructions" : _layout.TaskCard);
         void Section(string text) => _palette.Children.Add(Header("▾  " + text));
         void Item(string text, Action action, InstructionKind? instruction = null)
@@ -22,7 +23,7 @@ public sealed partial class WorkbenchView
         }
         if (_layout.TaskCard == "Testing") { Section("Virtual CPU"); Item("Start simulation", Run); Item("Stop simulation", Stop); Item("Single scan", Step); Item("Watch and force table", () => Navigate("watch")); Item("Trace", () => Navigate("trace")); Item("Online & diagnostics", () => Navigate("diagnostics")); }
         else if (_layout.TaskCard == "Libraries") { Section("Project library"); foreach (var b in _workspace.Project.Blocks) Item(b.Name + " [" + b.Language + "]", () => Navigate("block:" + b.Id)); Section("Screens"); foreach (var screen in _workspace.Project.Screens) Item(screen.Name, () => Navigate("hmi:" + screen.Id)); }
-        else if (IsHmiView) { Section("Basic objects"); foreach (var kind in Enum.GetValues<HmiKind>()) { var k = kind; Item(k.ToString(), () => AddHmi(k)); } }
+        else if (IsHmiView) ShowHmiPalette();
         else if (_view == "devices") { Section("Virtual hardware"); Item("Add remote I/O station", AddDevice); Section("Configured devices"); foreach (var device in _workspace.Project.Devices) Item(device.Name + " · " + device.IpAddress, () => Select(device.Id)); }
         else
         {

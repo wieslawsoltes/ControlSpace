@@ -22,6 +22,7 @@ public sealed partial class App : Application
             if ((location?.GetPropertyAsString("search") ?? "").TrimStart('?').Split('&').Contains("verify=1"))
                 _workbench.StartVerificationProbe();
 #endif
+            _window.Activated += (_, e) => { if (e.WindowActivationState == Windows.UI.Core.CoreWindowActivationState.Deactivated) _workbench.SuspendHmiInput(); };
             _window.Closed += (_, _) => _workbench.Dispose(); Console.WriteLine("[ControlSpace] Uno workspace ready");
         }
         catch (Exception ex)

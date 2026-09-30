@@ -5,7 +5,7 @@ namespace ControlSpace.Rendering.Skia;
 
 public sealed record HitRegion(string Id, string Kind, RectD Bounds);
 public sealed record RenderResult(IReadOnlyList<HitRegion> Hits, float ContentHeight);
-public sealed class EngineeringRenderer : IDisposable
+public sealed partial class EngineeringRenderer : IDisposable
 {
     private readonly SKPaint _paint = new() { IsAntialias = true };
     private SKTypeface _face = SKTypeface.FromFamilyName("Arial") ?? SKTypeface.Default;
@@ -21,15 +21,35 @@ public sealed class EngineeringRenderer : IDisposable
         var face = SKTypeface.FromStream(regular) ?? throw new InvalidDataException("Invalid renderer text font.");
         var boldFace = SKTypeface.FromStream(bold);
         if (boldFace is null) { face.Dispose(); throw new InvalidDataException("Invalid renderer bold font."); }
+        ClearTextRuns();
         _font.Typeface = face; _bold.Typeface = boldFace;
         _face.Dispose(); _boldFace.Dispose(); _face = face; _boldFace = boldFace;
     }
     private IReadOnlyList<PlcTag>? _cachedTags;
     private Dictionary<string, PlcTag> _tagLookup = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, int> _slotLookup = new(StringComparer.OrdinalIgnoreCase);
+    private void CacheTags(IReadOnlyList<PlcTag> tags)
+    {
+        if (ReferenceEquals(tags, _cachedTags)) return;
+        _cachedTags = tags; _tagLookup.Clear(); _slotLookup.Clear();
+        for (int i = 0; i < tags.Count; i++) { _tagLookup[tags[i].Name] = tags[i]; _slotLookup[tags[i].Name] = i; }
+    }
+    public int LastDrawnInstructions { get; private set; }
+    public int LastDrawnNetworks { get; private set; }
+    private ProgramBlock? _selectedBlock;
+    private string? _lastSelection, _selectedNetwork;
+    private void CacheSelection(ProgramBlock block, string? selection)
+    {
+        if (ReferenceEquals(block, _selectedBlock) && selection == _lastSelection) return;
+        _selectedBlock = block; _lastSelection = selection; _selectedNetwork = null;
+        if (selection is null) return;
+        foreach (var network in block.Networks)
+            if (network.Id == selection || network.Output.Id == selection || network.Branches.Any(b => b.Any(i => i.Id == selection))) { _selectedNetwork = network.Id; return; }
+    }
     private void Color(SKColor color, bool stroke = false, float width = 1) { _paint.Color = color; _paint.Style = stroke ? SKPaintStyle.Stroke : SKPaintStyle.Fill; _paint.StrokeWidth = width; }
     private void Text(SKCanvas c, string text, float x, float y, SKColor? color = null, float size = 12, bool bold = false)
     {
-        Color(color ?? Ink); var font = bold ? _bold : _font; font.Size = size; c.DrawText(text ?? "", x, y, font, _paint);
+        PaintRun(c, Run(text, size, bold), x, y, color ?? Ink, size, bold);
     }
     private void Box(SKCanvas c, float x, float y, float w, float h, SKColor fill, SKColor? stroke = null)
     {
@@ -40,43 +60,49 @@ public sealed class EngineeringRenderer : IDisposable
         Color(color ?? Ink, true, width); c.DrawLine(x1, y1, x2, y2, _paint);
     }
     public RenderResult Ladder(SKCanvas canvas, float width, float height, ProgramBlock block, IReadOnlyList<PlcTag> tags, ScanSnapshot? snapshot, string? selection = null, float scroll = 0, float zoom = 1, float horizontal = 0, LadderLayout? layout = null)
+        => LadderView(canvas, width, height, block, tags, snapshot, selection, scroll, zoom, horizontal, layout);
+    /// <summary>Render a synchronous read view without copying the full controller image.</summary>
+    public RenderResult LadderView(SKCanvas canvas, float width, float height, ProgramBlock block, IReadOnlyList<PlcTag> tags, IScanReadView? snapshot, string? selection = null, float scroll = 0, float zoom = 1, float horizontal = 0, LadderLayout? layout = null)
     {
-        if (!ReferenceEquals(tags, _cachedTags)) { _cachedTags = tags; _tagLookup = tags.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase); }
+        CacheTags(tags); CacheSelection(block, selection); LastDrawnInstructions = LastDrawnNetworks = 0;
         layout ??= new LadderLayout(block, width / zoom);
         var hits = new List<HitRegion>();
         canvas.Clear(SKColors.White); canvas.Save(); canvas.Scale(zoom); canvas.Translate(-horizontal, -scroll);
         float logicalWidth = (float)layout.Width;
-        bool Flow(string id) => snapshot is not null && snapshot.Flow.TryGetValue(id, out bool active) && active;
+        bool Flow(string id) => snapshot is not null && snapshot.TryGetFlow(id, out bool active) && active;
         foreach (var row in layout.Visible(scroll, height / zoom))
         {
             var network = block.Networks[row.Index]; float y = (float)row.Y;
-            bool selected = selection == network.Id || network.Output.Id == selection || network.Branches.Any(b => b.Any(i => i.Id == selection));
+            bool selected = network.Id == _selectedNetwork; LastDrawnNetworks++;
             Box(canvas, 0, y, logicalWidth, (float)row.Height, SKColors.White, SKColor.Parse("#D9DADD"));
             hits.Add(new(network.Id, "network", new(0, y, logicalWidth, row.Height)));
-            Box(canvas, 0, y, logicalWidth, 26, SKColor.Parse(selected ? "#C7D9EE" : "#DADAE0"));
-            Line(canvas, 0, y + 26, logicalWidth, y + 26, SKColor.Parse("#AEB2BC"));
+            Box(canvas, horizontal, y, width / zoom, 26, SKColor.Parse(selected ? "#C7D9EE" : "#DADAE0"));
+            Line(canvas, horizontal, y + 26, horizontal + width / zoom, y + 26, SKColor.Parse("#AEB2BC"));
             // Vector chevron: never depend on a missing glyph in a browser font.
-            if (row.Collapsed) { Line(canvas, 10, y + 8, 15, y + 13); Line(canvas, 15, y + 13, 10, y + 18); }
-            else { Line(canvas, 8, y + 10, 13, y + 15); Line(canvas, 13, y + 15, 18, y + 10); }
-            hits.Add(new(network.Id, "network-toggle", new(0, y, 26, 26)));
-            canvas.Save(); canvas.ClipRect(new SKRect(28, y, logicalWidth - 10, y + 26));
-            Text(canvas, $"Network {row.Index + 1}:  {network.Title}", 30, y + 18, size: 12, bold: true); canvas.Restore();
+            if (row.Collapsed) { Line(canvas, horizontal + 10, y + 8, horizontal + 15, y + 13); Line(canvas, horizontal + 15, y + 13, horizontal + 10, y + 18); }
+            else { Line(canvas, horizontal + 8, y + 10, horizontal + 13, y + 15); Line(canvas, horizontal + 13, y + 15, horizontal + 18, y + 10); }
+            hits.Add(new(network.Id, "network-toggle", new(horizontal, y, 26, 26)));
+            canvas.Save(); canvas.ClipRect(new SKRect(horizontal + 28, y, horizontal + width / zoom - 10, y + 26));
+            Text(canvas, row.Caption, horizontal + 30, y + 18, size: 12, bold: true); canvas.Restore();
             if (row.Collapsed) continue;
-            canvas.Save(); canvas.ClipRect(new SKRect(22, y + 27, logicalWidth - 20, y + 60));
-            Text(canvas, (network.Comment ?? "").Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "  ·  "), 24, y + 47, SKColor.Parse("#66737D"), 11); canvas.Restore();
-            float left = 46, merge = logicalWidth - 168, outputX = logicalWidth - 85, firstY = y + 104;
+            canvas.Save(); canvas.ClipRect(new SKRect(horizontal + 22, y + 27, horizontal + width / zoom - 20, y + 54));
+            Text(canvas, row.Comment, horizontal + 24, y + 45, SKColor.Parse("#66737D"), 11); canvas.Restore();
+            float left = 46, merge = logicalWidth - 168, outputX = logicalWidth - 85, firstY = y + (float)LadderLayout.FirstRungY;
             float lastY = firstY + (network.Branches.Count - 1) * (float)LadderLayout.BranchSpacing;
-            bool monitored = snapshot?.Flow.ContainsKey(network.Id) == true;
+            bool monitored = snapshot?.TryGetFlow(network.Id, out _) == true;
             Line(canvas, left, firstY - 21, left, lastY + 24, monitored ? Active : Ink, 2);
             if (network.Branches.Count > 1) Line(canvas, merge, firstY, merge, lastY, Flow(network.Id) ? Active : Ink);
             for (int branchIndex = 0; branchIndex < network.Branches.Count; branchIndex++)
             {
                 var branch = network.Branches[branchIndex]; float lineY = firstY + branchIndex * (float)LadderLayout.BranchSpacing;
-                float wireX = left; bool incoming = monitored;
-                for (int j = 0; j < branch.Count; j++)
+                if (lineY + 28 < scroll || lineY - 44 > scroll + height / zoom) continue;
+                var visible = LadderLayout.VisibleContacts(branch.Count, horizontal, width / zoom);
+                float wireX = visible.First == 0 ? left : (float)LadderLayout.Contact(visible.First - 1, lineY).X + 78;
+                bool incoming = visible.First == 0 ? monitored : Flow(branch[visible.First - 1].Id);
+                for (int j = visible.First; j < visible.End; j++)
                 {
                     var instruction = branch[j]; var region = LadderLayout.Contact(j, lineY); float x = (float)region.X + 62;
-                    hits.Add(new(instruction.Id, "instruction", region));
+                    hits.Add(new(instruction.Id, "instruction", region)); LastDrawnInstructions++;
                     if (selection == instruction.Id) Box(canvas, (float)region.X, (float)region.Y, (float)region.Width, (float)region.Height, SKColor.Parse("#EAF3FC"), SKColor.Parse("#397FB7"));
                     Line(canvas, wireX, lineY, x - 16, lineY, incoming ? Active : Ink);
                     var color = Flow(instruction.Id) ? Active : Ink;
@@ -93,14 +119,16 @@ public sealed class EngineeringRenderer : IDisposable
                         if (instruction.Kind is InstructionKind.RisingEdge or InstructionKind.FallingEdge) Text(canvas, instruction.Kind == InstructionKind.RisingEdge ? "P" : "N", x - 4, lineY + 4, color, 10);
                     }
                     Operand(canvas, instruction.Tag, x - 58, lineY - 20, 116);
-                    if (_tagLookup.TryGetValue(instruction.Tag, out var tag)) Text(canvas, tag.Address, x - 22, lineY - 35, Teal, 10);
+                    if (_tagLookup.TryGetValue(instruction.Tag, out var tag)) CenterText(canvas, tag.Address, x, lineY - 36, 116, Teal, 10);
                     incoming = Flow(instruction.Id); wireX = x + 16;
                 }
-                Line(canvas, wireX, lineY, merge, lineY, incoming ? Active : Ink);
+                Line(canvas, wireX, lineY, visible.End == branch.Count ? merge : (float)LadderLayout.Contact(visible.End, lineY).X + 46, lineY, incoming ? Active : Ink);
+                if (branchIndex > 0 && monitored) { Color(Flow(network.Id) ? Active : Ink); canvas.DrawCircle(merge, lineY, 2.2f, _paint); }
             }
-            var o = network.Output; var outputRegion = new RectD(outputX - 62, firstY - 45, 124, 94); hits.Add(new(o.Id, "instruction", outputRegion));
-            if (selection == o.Id) Box(canvas, (float)outputRegion.X, (float)outputRegion.Y, 124, 94, SKColor.Parse("#EAF3FC"), SKColor.Parse("#397FB7"));
             Line(canvas, merge, firstY, logicalWidth - 22, firstY, Flow(network.Id) ? Active : Ink);
+            if (outputX + 62 < horizontal || outputX - 62 > horizontal + width / zoom || firstY + 49 < scroll || firstY - 45 > scroll + height / zoom) continue;
+            var o = network.Output; var outputRegion = new RectD(outputX - 62, firstY - 45, 124, 94); hits.Add(new(o.Id, "instruction", outputRegion)); LastDrawnInstructions++;
+            if (selection == o.Id) Box(canvas, (float)outputRegion.X, (float)outputRegion.Y, 124, 94, SKColor.Parse("#EAF3FC"), SKColor.Parse("#397FB7"));
             bool blockOutput = o.Kind is InstructionKind.TimerOn or InstructionKind.TimerOff or InstructionKind.Pulse or InstructionKind.CountUp or InstructionKind.Move;
             if (blockOutput)
             {
@@ -121,7 +149,7 @@ public sealed class EngineeringRenderer : IDisposable
                 if (o.Kind is InstructionKind.SetCoil or InstructionKind.ResetCoil) Text(canvas, o.Kind == InstructionKind.SetCoil ? "S" : "R", outputX - 4, firstY + 4, size: 10);
             }
             Operand(canvas, o.Tag, outputX - 60, firstY - (blockOutput ? 27 : 23), 120);
-            if (_tagLookup.TryGetValue(o.Tag, out var outTag)) Text(canvas, outTag.Address, outputX - 22, firstY - (blockOutput ? 42 : 37), Teal, 10);
+            if (_tagLookup.TryGetValue(o.Tag, out var outTag)) CenterText(canvas, outTag.Address, outputX, firstY - (blockOutput ? 42 : 37), 120, Teal, 10);
         }
         if (block.Networks.Count == 0) { Text(canvas, "No networks in this block", 28, 40, size: 18); Text(canvas, "Insert a network from the toolbar or press Insert.", 28, 67, size: 12); }
         canvas.Restore(); return new(hits, (float)layout.Height);
@@ -129,12 +157,12 @@ public sealed class EngineeringRenderer : IDisposable
     private void Operand(SKCanvas canvas, string text, float x, float baseline, float width)
     {
         canvas.Save(); canvas.ClipRect(new SKRect(x, baseline - 13, x + width, baseline + 3));
-        Text(canvas, text, x, baseline, Teal, 11); canvas.Restore();
+        CenterText(canvas, "\"" + text + "\"", x + width / 2, baseline, width, Ink, 11); canvas.Restore();
     }
     public RenderResult Devices(SKCanvas canvas, float width, float height, ControlProject project, string? selection = null)
     {
         canvas.Clear(SKColor.Parse("#FAFBFC")); var hits = new List<HitRegion>();
-        for (float x = 0; x < width; x += 20) for (float y = 0; y < height; y += 20) { Color(SKColor.Parse("#DCE3E7")); canvas.DrawCircle(x, y, .65f, _paint); }
+        DrawGrid(canvas, width, height, SKColor.Parse("#DCE3E7"), .65f);
         foreach (var link in project.Links)
         {
             var a = project.Devices.Find(d => d.Id == link.From); var b = project.Devices.Find(d => d.Id == link.To); if (a is null || b is null) continue;
@@ -168,18 +196,25 @@ public sealed class EngineeringRenderer : IDisposable
         return new(hits, height);
     }
     public RenderResult Hmi(SKCanvas canvas, float width, float height, HmiScreen screen, IReadOnlyList<PlcTag> tags, ScanSnapshot? snapshot, string? selection = null, bool runtime = false)
+        => HmiView(canvas, width, height, screen, tags, snapshot, selection, runtime);
+    public RenderResult HmiView(SKCanvas canvas, float width, float height, HmiScreen screen, IReadOnlyList<PlcTag> tags, IScanReadView? snapshot, string? selection = null, bool runtime = false)
     {
+        CacheTags(tags);
         canvas.Clear(SKColor.Parse("#E1E5E8")); var hits = new List<HitRegion>();
         float scale = Math.Min((width - 48) / (float)screen.Width, (height - 48) / (float)screen.Height); scale = Math.Max(.1f, scale);
         canvas.Save(); canvas.Translate(24, 24); canvas.Scale(scale); Box(canvas, 0, 0, (float)screen.Width, (float)screen.Height, SKColor.Parse("#F7FAFC"), SKColor.Parse("#8D9DA7"));
-        if (!runtime) for (float x = 0; x < screen.Width; x += 20) for (float y = 0; y < screen.Height; y += 20) { Color(SKColor.Parse("#DFE8EC")); canvas.DrawCircle(x, y, .7f, _paint); }
+        if (!runtime) DrawGrid(canvas, (float)screen.Width, (float)screen.Height, SKColor.Parse("#DFE8EC"), .7f);
         foreach (var o in screen.Objects)
         {
             float x = (float)o.X, y = (float)o.Y, w = (float)o.Width, h = (float)o.Height; var color = SKColor.TryParse(o.Color, out var parsed) ? parsed : Teal;
-            int slot = tags.ToList().FindIndex(t => t.Name.Equals(o.Tag, StringComparison.OrdinalIgnoreCase)); double value = slot < 0 ? 0 : snapshot?.Values[slot] ?? tags[slot].InitialValue;
+            int slot = _slotLookup.GetValueOrDefault(o.Tag, -1); double value = slot < 0 ? 0 : snapshot is not null && slot < snapshot.ValueCount ? snapshot.ReadValue(slot) : tags[slot].InitialValue;
             hits.Add(new(o.Id, "hmi", new(24 + x * scale, 24 + y * scale, w * scale, h * scale)));
             switch (o.Kind)
             {
+                case HmiKind.Rectangle:
+                case HmiKind.Ellipse:
+                case HmiKind.Line:
+                    DrawHmiShape(canvas, o, color); break;
                 case HmiKind.Label: Text(canvas, o.Text, x, y + h * .72f, color, h > 35 ? 26 : 15, h > 35); break;
                 case HmiKind.Button:
                     Box(canvas, x, y, w, h, value != 0 ? Active : color); Text(canvas, o.Text, x + 24, y + h / 2 + 6, SKColors.White, 17, true); break;
@@ -205,23 +240,24 @@ public sealed class EngineeringRenderer : IDisposable
     }
     public void Trace(SKCanvas canvas, float width, float height, IReadOnlyList<ScanSnapshot> samples, IReadOnlyList<PlcTag> tags, string channel = "Speed_Actual")
     {
-        canvas.Clear(SKColors.White); int slot = tags.ToList().FindIndex(t => t.Name.Equals(channel, StringComparison.OrdinalIgnoreCase));
-        if (slot < 0) slot = tags.ToList().FindIndex(t => t.Type != PlcType.Bool);
+        canvas.Clear(SKColors.White); CacheTags(tags); int slot = _slotLookup.GetValueOrDefault(channel, -1);
+        if (slot < 0) for (int i = 0; i < tags.Count; i++) if (tags[i].Type != PlcType.Bool) { slot = i; break; }
         if (slot < 0 && tags.Count > 0) slot = 0;
         if (slot < 0) { Text(canvas, "This project has no tags to trace.", 30, 45, Teal, 14); return; }
         channel = tags[slot].Name;
         float x0 = 62, y0 = 38, w = Math.Max(40, width - 100), h = Math.Max(40, height - 90);
-        int start = Math.Max(0, samples.Count - 300); var visible = samples.Skip(start).ToList();
-        double maximum = Math.Max(100, visible.Count == 0 ? 0 : visible.Max(s => s.Values[slot]));
-        double minimum = Math.Min(0, visible.Count == 0 ? 0 : visible.Min(s => s.Values[slot])), range = maximum - minimum;
+        int start = Math.Max(0, samples.Count - 300), count = samples.Count - start;
+        double maximum = 100, minimum = 0;
+        for (int i = start; i < samples.Count; i++) if (slot < samples[i].Values.Length) { maximum = Math.Max(maximum, samples[i].Values[slot]); minimum = Math.Min(minimum, samples[i].Values[slot]); }
+        double range = maximum - minimum;
         Text(canvas, channel + "  /  virtual scan time", x0, 22, Teal, 13, true);
         for (int i = 0; i <= 5; i++) { float y = y0 + i * h / 5; Line(canvas, x0, y, x0 + w, y, SKColor.Parse("#DFE6EC")); Text(canvas, (maximum - range * i / 5).ToString("0.#"), 20, y + 4, size: 11); }
-        if (visible.Count < 2) { Text(canvas, "Start simulation to acquire trace samples.", x0 + 18, y0 + 30, size: 13); return; }
+        if (count < 2) { Text(canvas, "Start simulation to acquire trace samples.", x0 + 18, y0 + 30, size: 13); return; }
         using var path = new SKPath();
-        for (int i = 0; i < visible.Count; i++) { float x = x0 + i * w / (visible.Count - 1), y = y0 + h * (1 - (float)((visible[i].Values[slot] - minimum) / range)); if (i == 0) path.MoveTo(x, y); else path.LineTo(x, y); }
+        for (int i = 0; i < count; i++) { float x = x0 + i * w / (count - 1), y = y0 + h * (1 - (float)((samples[start + i].Values[slot] - minimum) / range)); if (i == 0) path.MoveTo(x, y); else path.LineTo(x, y); }
         Color(Teal, true, 2); canvas.DrawPath(path, _paint);
-        Text(canvas, (visible[0].VirtualMilliseconds / 1000).ToString("0.0") + " s", x0, y0 + h + 24, size: 11);
-        Text(canvas, (visible[^1].VirtualMilliseconds / 1000).ToString("0.0") + " s", x0 + w - 35, y0 + h + 24, size: 11);
+        Text(canvas, (samples[start].VirtualMilliseconds / 1000).ToString("0.0") + " s", x0, y0 + h + 24, size: 11);
+        Text(canvas, (samples[^1].VirtualMilliseconds / 1000).ToString("0.0") + " s", x0 + w - 35, y0 + h + 24, size: 11);
     }
-    public void Dispose() { _font.Dispose(); _bold.Dispose(); _paint.Dispose(); _face.Dispose(); _boldFace.Dispose(); }
+    public void Dispose() { ClearTextRuns(); _font.Dispose(); _bold.Dispose(); _paint.Dispose(); _face.Dispose(); _boldFace.Dispose(); }
 }

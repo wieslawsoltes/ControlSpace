@@ -52,10 +52,10 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       RID: ${{ matrix.rid }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
       - name: Publish self-contained single-file executable
@@ -85,7 +85,7 @@ jobs:
             tar -C "$OUT" -czf "artifacts/dist/$BASE.tar.gz" "$APP_NAME"
           fi
           ls -la artifacts/dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.rid }}
           path: artifacts/dist/*
@@ -100,10 +100,10 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
       - uses: actions/setup-node@v4
@@ -140,12 +140,12 @@ jobs:
           cp artifacts/packages/*.nupkg artifacts/ControlSpace-browser.zip artifacts/ControlSpace-source.zip artifacts/dist/
           (cd artifacts/dist && sha256sum * > SHA256SUMS)
           cat artifacts/dist/SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: controlspace-release
           path: artifacts/dist/*
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nuget-packages
           path: |
@@ -182,7 +182,7 @@ jobs:
         with:
           name: nuget-packages
           path: packages
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
       - name: Check NuGet user

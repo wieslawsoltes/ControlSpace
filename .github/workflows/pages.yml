@@ -14,11 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - uses: actions/cache@v4
@@ -34,6 +34,10 @@ jobs:
         run: dotnet run --project tests/ControlSpace.Workbench.Tests -c Release
       - name: Transactional tag table regressions
         run: dotnet run --project tests/ControlSpace.Table.Tests -c Release
+      - name: Project navigation regressions
+        run: dotnet run --project tests/ControlSpace.Navigation.Tests -c Release
+      - name: HMI authoring and rendering regressions
+        run: dotnet run --project tests/ControlSpace.Hmi.Tests -c Release
       - name: Program and ladder authoring regressions
         run: dotnet run --project tests/ControlSpace.Program.Tests -c Release
       - name: Publish the real Uno Skia WebAssembly app
@@ -59,11 +63,15 @@ jobs:
           python tests/browser/uno_smoke.py http://127.0.0.1:4173/ControlSpace/
           python tests/browser/tag_table.py http://127.0.0.1:4173/ControlSpace/
           python tests/browser/program_editor.py http://127.0.0.1:4173/ControlSpace/
+          python tests/browser/uno_performance_test.py http://127.0.0.1:4173/ControlSpace/
+          python tests/browser/navigation_test.py http://127.0.0.1:4173/ControlSpace/
+          python tests/browser/hmi_editor.py http://127.0.0.1:4173/ControlSpace/
+          python tests/browser/hmi_shapes.py http://127.0.0.1:4173/ControlSpace/
       - name: Stage genuine Uno UI previews
         run: |
           mkdir -p artifacts/site/docs/uno
           cp artifacts/uno-verification/uno-*.png artifacts/site/docs/uno/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: uno-browser-verification
@@ -71,7 +79,7 @@ jobs:
             artifacts/uno-verification/
             artifacts/server.log
             artifacts/packages/*.nupkg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           if-no-files-found: ignore

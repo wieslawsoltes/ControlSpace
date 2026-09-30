@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased — HMI basic graphics
+
+- Added rectangle, ellipse and line objects to the shared Uno toolbox and both Skia HMI rendering APIs.
+- Added filled-ellipse and line-stroke hit tests, including transparent-corner click-through and zoom-correct line tolerance.
+- Shapes participate in existing geometry edits, group transforms, clipboard, ordering and undo; invalid tag bindings are rejected.
+- Added native geometry/roundtrip/rendering regressions and real pointer/clipboard/browser shape workflows.
+- Older builds and the separate six-object JavaScript prototype do not accept shape-bearing projects; detailed line/style limitations are in docs/hmi-design.md.
+
+## Unreleased — project navigation responsiveness
+
+- Recycled project-tree rows only for the viewport and overscan; retained an indexed outline across source, tag-value, network and HMI-object edits which do not alter it.
+- Added linear ancestor-preserving search, result counts, empty-search feedback, a clear-search button, explicit active-editor reveal and metadata in Details.
+- Kept keyboard selection, focus and scrolling synchronized for Home/End, PageUp/PageDown and parent/child navigation. Initial-letter keys cycle visible matching captions without opening documents or changing the filter.
+- Added native navigation regressions and actual Uno browser tests importing 1,000 blocks plus 1,000 screens. These measure bounded controls and correct behavior, not a TIA-relative or end-to-end latency improvement.
+
+## Unreleased — performance and rendering quality
+
+- Removed JSON serialization from dirty/no-op checks and per-bit string allocation from address overlap validation.
+- Added reusable scan buffers and a read-only live renderer view; retained full value validation, rollback and detached history snapshots.
+- Bounded retained trace payload and cached text/tag lookups; culled offscreen ladder contacts and batched design-grid drawing.
+- Coalesced canvas requests, skipped unchanged or hidden-scene redraws and unchanged recovery serialization, and retained editor/palette/toolbar/tab controls.
+- Refined compact command chrome, vector contact icons, ladder spacing and operand/address alignment.
+- Added same-harness baseline benchmarks, allocation regressions and real Uno browser performance-mechanism checks. See [measurement scope](docs/performance.md); no overall or TIA-relative speedup is implied.
+
 ## Unreleased — program and LAD authoring
 
 - Added a reusable program directory and transactional LAD/SCL block creation, properties, duplication, deletion and simulator scan-order commands. Copies use fresh graph identifiers and start offline.

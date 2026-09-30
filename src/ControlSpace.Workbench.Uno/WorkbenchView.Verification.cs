@@ -37,8 +37,20 @@ public sealed partial class WorkbenchView
             if (_programDialog is not null) Visit(_programDialog);
             bool canvasVisible = _editor.Content == _graphics && _body.Visibility == Visibility.Visible;
             var canvasOrigin = canvasVisible ? _canvas.TransformToVisual(this).TransformPoint(new Point(0, 0)) : new Point(0, 0);
-            var ladderHits = (canvasVisible ? _canvas.HitRegions : Array.Empty<ControlSpace.Rendering.Skia.HitRegion>()).Select(h => new { id = h.Id, kind = h.Kind, x = canvasOrigin.X + (h.Bounds.X - _canvas.HorizontalOffset) * _canvas.Zoom, y = canvasOrigin.Y + (h.Bounds.Y - _canvas.ScrollOffset) * _canvas.Zoom, width = h.Bounds.Width * _canvas.Zoom, height = h.Bounds.Height * _canvas.Zoom }).ToArray();
-            var json = JsonSerializer.Serialize(new { controls, ladderHits, revision = _workspace.Project.Revision,
+            var ladderHits = (canvasVisible && _canvas.Mode == ControlSpace.Controls.Uno.EditorMode.Ladder ? _canvas.HitRegions : Array.Empty<ControlSpace.Rendering.Skia.HitRegion>()).Select(h => new { id = h.Id, kind = h.Kind, x = canvasOrigin.X + (h.Bounds.X - _canvas.HorizontalOffset) * _canvas.Zoom, y = canvasOrigin.Y + (h.Bounds.Y - _canvas.ScrollOffset) * _canvas.Zoom, width = h.Bounds.Width * _canvas.Zoom, height = h.Bounds.Height * _canvas.Zoom }).ToArray();
+            var hmiHits = (canvasVisible && _canvas.Mode == ControlSpace.Controls.Uno.EditorMode.Hmi ? _canvas.HitRegions : Array.Empty<ControlSpace.Rendering.Skia.HitRegion>()).Select(h => new { id = h.Id, x = canvasOrigin.X + h.Bounds.X, y = canvasOrigin.Y + h.Bounds.Y, width = h.Bounds.Width, height = h.Bounds.Height }).ToArray();
+            var hmiHandles = _canvas.HmiHandles().Select(h => new { handle = h.Handle, x = canvasOrigin.X + h.Bounds.X, y = canvasOrigin.Y + h.Bounds.Y, width = h.Bounds.Width, height = h.Bounds.Height }).ToArray();
+            var hmiTransform = _canvas.HmiTransform;
+            var json = JsonSerializer.Serialize(new { hmiHits, hmiHandles, hmiSelection = _canvas.HmiSelection.ToArray(), hmiRuntime = _hmiRuntime,
+                hmiObjects = _workspace.Project.Screens.FirstOrDefault(s => "hmi:" + s.Id == _view)?.Objects.Take(200).ToArray(),
+                hmiScreens = _workspace.Project.Screens.Take(100).Select(s => new { s.Id, s.Name, s.Width, s.Height, count = s.Objects.Count }).ToArray(),
+                hmiView = new { x = canvasOrigin.X + hmiTransform.X, y = canvasOrigin.Y + hmiTransform.Y, scale = hmiTransform.Scale, fit = _canvas.HmiFit, grid = _canvas.HmiGrid, snap = _canvas.HmiSnap, preview = _canvas.HmiPreviewBoxes, gesture = _canvas.HmiGestureActive, drawnObjects = _canvas.HmiDrawnObjects }, navigation = new { rows = _tree.RealizedRowCount, creations = _tree.RowCreations, visible = _tree.VisibleEntryCount, selected = _tree.SelectedId, focused = _tree.FocusedId, selectedIndex = _tree.SelectedVisibleIndex, offset = _tree.VerticalOffset, viewport = _tree.ViewportHeight, filter = _tree.Filter, indexBuilds = _tree.IndexBuilds, projectionBuilds = _tree.ProjectionBuilds }, performance = new {
+                paintCount = _canvas.PaintCount, renderRequests = _canvas.RenderRequests, renderSubmissions = _canvas.RenderSubmissions,
+                lastPaintMilliseconds = _canvas.LastPaintMilliseconds, snapshotCopies = _workspace.Controller?.SnapshotCopies ?? 0,
+                visualVersion = _workspace.Controller?.VisualVersion ?? 0, recoverySerializations = RecoverySerializations,
+                editorBuilds = EditorBuilds, paletteBuilds = PaletteBuilds, toolbarBuilds = ToolbarBuilds,
+                tabCreations = _editorBar.TabCreations, textRuns = _canvas.TextRunCreations,
+                drawnInstructions = _canvas.LastDrawnInstructions }, controls, ladderHits, revision = _workspace.Project.Revision,
                 programBlocks = _workspace.Project.Blocks.Select(b => new { b.Id, b.Name, b.Number, language = b.Language.ToString(), b.Cyclic, networks = b.Networks.Count }).ToArray(),
                 ladderNetworks = _workspace.Project.Blocks.FirstOrDefault(b => "block:" + b.Id == _view)?.Networks.Take(100).ToArray(),
                 ladderSelection = _selection, ladderCollapsed = _canvas.CollapsedNetworks.ToArray(), ladderWidth = _canvas.ContentWidth,
