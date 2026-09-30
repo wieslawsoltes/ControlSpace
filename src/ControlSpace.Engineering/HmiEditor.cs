@@ -63,9 +63,14 @@ public sealed class HmiEditor(Workspace workspace)
     }
     public string DuplicateScreen(ControlProject expected, string id)
     {
-        string copyId = Id(); Edit(expected, "Duplicate HMI screen", p => { var s = Screen(p, id); p.Screens.Insert(p.Screens.IndexOf(s) + 1, s with { Id = copyId, Name = NextName(p, s.Name + "_copy"), Objects = s.Objects.Select(o => o with { Id = Id() }).ToList() }); }); return copyId;
+        string copyId = Id(); Edit(expected, "Duplicate HMI screen", p => { var s = Screen(p, id); p.Screens.Insert(p.Screens.IndexOf(s) + 1, s with { Id = copyId, Name = NextName(p, s.Name + "_copy"), Objects = s.Objects.Select(o => o with { Id = Id(), Button = o.Button is { Action: HmiButtonAction.ActivateScreen } button && button.TargetScreenId == id ? button with { TargetScreenId = copyId } : o.Button }).ToList() }); }); return copyId;
     }
-    public void DeleteScreen(ControlProject expected, string id) => Edit(expected, "Delete HMI screen", p => p.Screens.Remove(Screen(p, id)));
+    public void DeleteScreen(ControlProject expected, string id) => Edit(expected, "Delete HMI screen", p =>
+    {
+        var source = p.Screens.FirstOrDefault(s => s.Id != id && s.Objects.Any(o => o.Button is { Action: HmiButtonAction.ActivateScreen } b && b.TargetScreenId == id));
+        if (source is not null) throw new InvalidOperationException($"Screen '{source.Name}' contains a button referencing this screen. Remove or retarget that action first.");
+        p.Screens.Remove(Screen(p, id));
+    });
     public static bool Accepts(HmiKind kind, PlcTag tag) => kind switch
     {
         HmiKind.Button => tag.Type == PlcType.Bool && PlcValues.IsInput(tag.Address),

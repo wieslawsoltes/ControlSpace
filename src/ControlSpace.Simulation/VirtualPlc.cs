@@ -73,10 +73,11 @@ public sealed partial class VirtualPlc
     public void Run()
     {
         if (State == ControllerState.Faulted) throw new InvalidOperationException("Reset the virtual controller before restarting after a fault.");
-        if (State != ControllerState.Running) VisualVersion++; State = ControllerState.Running;
+        if (State != ControllerState.Running) { VisualVersion++; InteractionEpoch++; } State = ControllerState.Running;
     }
     public void Stop()
     {
+        InteractionEpoch++;
         if (State != ControllerState.Faulted) State = ControllerState.Stopped; _forces.Clear(); _memory.Clear(); _flow.Clear(); ClearOutputs(); VisualVersion++;
     }
     public void Reset(bool retain = false)
@@ -142,7 +143,7 @@ public sealed partial class VirtualPlc
         catch (Exception ex) when (ex is ArithmeticException or InvalidOperationException or ArgumentException)
         {
             // No partial scan is committed. Physical-style outputs are forced to zero.
-            VisualVersion++; State = ControllerState.Faulted; Fault = ex.Message; _forces.Clear(); _memory.Clear(); _flow.Clear(); ClearOutputs();
+            VisualVersion++; InteractionEpoch++; State = ControllerState.Faulted; Fault = ex.Message; _forces.Clear(); _memory.Clear(); _flow.Clear(); ClearOutputs();
             LastCpuMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds; return false;
         }
     }

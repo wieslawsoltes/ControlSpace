@@ -19,7 +19,13 @@ public sealed record LadderNetwork(string Id, string Title, string Comment, List
 public sealed record ProgramBlock(string Id, string Name, int Number, BlockLanguage Language, bool Cyclic, List<LadderNetwork> Networks, string Source = "");
 public sealed record Device(string Id, string Name, DeviceKind Kind, string Model, string IpAddress, double X, double Y, List<string> Modules);
 public sealed record NetworkLink(string Id, string From, string To, string Subnet = "PN/IE_1");
-public sealed record HmiObject(string Id, HmiKind Kind, string Text, string Tag, double X, double Y, double Width, double Height, string Color = "#008C95");
+public sealed record HmiObject(string Id, HmiKind Kind, string Text, string Tag, double X, double Y, double Width, double Height, string Color = "#008C95")
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public HmiButtonBehavior? Button { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public HmiNumericOptions? Numeric { get; init; }
+}
 public sealed record HmiScreen(string Id, string Name, double Width, double Height, List<HmiObject> Objects);
 public sealed record ControlProject(string Format, int Version, string Id, string Name, long Revision, List<PlcTag> Tags, List<ProgramBlock> Blocks, List<Device> Devices, List<NetworkLink> Links, List<HmiScreen> Screens)
 {
