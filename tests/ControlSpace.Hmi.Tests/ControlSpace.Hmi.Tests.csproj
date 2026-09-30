@@ -3,6 +3,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/ControlSpace.Engineering/ControlSpace.Engineering.csproj" />
     <ProjectReference Include="../../src/ControlSpace.Rendering.Skia/ControlSpace.Rendering.Skia.csproj" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.2" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="$(SkiaSharpVersion)" />
   </ItemGroup>
 </Project>

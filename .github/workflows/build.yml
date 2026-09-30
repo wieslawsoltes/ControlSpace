@@ -68,6 +68,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build Uno Skia desktop workspace
         run: dotnet build src/ControlSpace.App -c Release -f net10.0-desktop -p:ControlSpaceTargetFrameworks=net10.0-desktop
+      - name: Execute native HMI rendering on this desktop OS
+        run: dotnet run --project tests/ControlSpace.Hmi.Tests -c Release
   prototype-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
