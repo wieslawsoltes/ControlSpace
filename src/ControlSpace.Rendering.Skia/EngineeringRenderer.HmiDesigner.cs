@@ -30,7 +30,8 @@ public sealed partial class EngineeringRenderer
             int slot = _slotLookup.GetValueOrDefault(o.Tag, -1);
             double value = slot < 0 ? 0 : values is not null && slot < values.ValueCount ? values.ReadValue(slot) : tags[slot].InitialValue;
             canvas.Save(); canvas.ClipRect(new SKRect(x, y, x + w, y + h));
-            switch (o.Kind)
+            if (o.Runtime is not null && HmiRuntimeRules.IsNumeric(o.Kind)) DrawConfiguredHmiNumeric(canvas, o, value, color, runtime);
+            else switch (o.Kind)
             {
                 case HmiKind.Rectangle:
                 case HmiKind.Ellipse:

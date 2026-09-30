@@ -21,10 +21,10 @@ public sealed record Device(string Id, string Name, DeviceKind Kind, string Mode
 public sealed record NetworkLink(string Id, string From, string To, string Subnet = "PN/IE_1");
 public sealed record HmiObject(string Id, HmiKind Kind, string Text, string Tag, double X, double Y, double Width, double Height, string Color = "#008C95")
 {
+    // Keep the existing constructor/deconstruction contract and omit absent options
+    // so exporting a legacy object does not add an unknown null member.
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public HmiButtonBehavior? Button { get; init; }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public HmiNumericOptions? Numeric { get; init; }
+    public HmiRuntimeOptions? Runtime { get; init; }
 }
 public sealed record HmiScreen(string Id, string Name, double Width, double Height, List<HmiObject> Objects);
 public sealed record ControlProject(string Format, int Version, string Id, string Name, long Revision, List<PlcTag> Tags, List<ProgramBlock> Blocks, List<Device> Devices, List<NetworkLink> Links, List<HmiScreen> Screens)

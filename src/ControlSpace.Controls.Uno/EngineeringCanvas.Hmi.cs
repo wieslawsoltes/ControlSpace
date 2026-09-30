@@ -82,6 +82,7 @@ public sealed partial class EngineeringCanvas
     public void CancelHmiInteraction()
     {
         bool active = _hmiPointer is not null, pressed = _hmiInput.IsPressed;
+        _hmiActivation = null;
         _hmiPointer = null; _hmiExpected = null; _hmiGesture = null; _hmiBoxes = null; _hmiPreview = null; _hmiMarqueeStart = null; _hmiMarquee = null; _hmiMoved = _hmiDragStarted = false;
         _hmiInput.Release(); if (active) ReleasePointerCaptures();
         if (pressed) HmiRuntimeChanged?.Invoke(); if (active) RequestRender();

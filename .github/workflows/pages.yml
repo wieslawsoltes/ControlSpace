@@ -67,6 +67,7 @@ jobs:
           python tests/browser/navigation_test.py http://127.0.0.1:4173/ControlSpace/
           python tests/browser/hmi_editor.py http://127.0.0.1:4173/ControlSpace/
           python tests/browser/hmi_shapes.py http://127.0.0.1:4173/ControlSpace/
+          python tests/browser/hmi_runtime.py http://127.0.0.1:4173/ControlSpace/
       - name: Stage genuine Uno UI previews
         run: |
           mkdir -p artifacts/site/docs/uno

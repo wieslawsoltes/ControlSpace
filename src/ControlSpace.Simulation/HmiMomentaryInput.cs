@@ -12,6 +12,7 @@ public sealed class HmiMomentaryInput : IDisposable
         Release(); if (controller is null || controller.State == ControllerState.Faulted) return false;
         var declaration = controller.Program.Project.Tags.FirstOrDefault(t => t.Name.Equals(tag, StringComparison.OrdinalIgnoreCase));
         if (declaration is null || declaration.Type != PlcType.Bool || !PlcValues.IsInput(declaration.Address)) return false;
+        if (controller.Forces.ContainsKey(controller.FindSlot(declaration.Name))) return false;
         controller.SetInput(declaration.Name, 1); _controller = controller; _tag = declaration.Name; return true;
     }
     public void Release()

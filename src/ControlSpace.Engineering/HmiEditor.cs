@@ -63,12 +63,12 @@ public sealed class HmiEditor(Workspace workspace)
     }
     public string DuplicateScreen(ControlProject expected, string id)
     {
-        string copyId = Id(); Edit(expected, "Duplicate HMI screen", p => { var s = Screen(p, id); p.Screens.Insert(p.Screens.IndexOf(s) + 1, s with { Id = copyId, Name = NextName(p, s.Name + "_copy"), Objects = s.Objects.Select(o => o with { Id = Id(), Button = o.Button is { Action: HmiButtonAction.ActivateScreen } button && button.TargetScreenId == id ? button with { TargetScreenId = copyId } : o.Button }).ToList() }); }); return copyId;
+        string copyId = Id(); Edit(expected, "Duplicate HMI screen", p => { var s = Screen(p, id); p.Screens.Insert(p.Screens.IndexOf(s) + 1, s with { Id = copyId, Name = NextName(p, s.Name + "_copy"), Objects = s.Objects.Select(o => o with { Id = Id(), Runtime = o.Runtime?.Action == HmiButtonAction.ActivateScreen && o.Runtime.ScreenId == id ? o.Runtime with { ScreenId = copyId } : o.Runtime }).ToList() }); }); return copyId;
     }
     public void DeleteScreen(ControlProject expected, string id) => Edit(expected, "Delete HMI screen", p =>
     {
-        var source = p.Screens.FirstOrDefault(s => s.Id != id && s.Objects.Any(o => o.Button is { Action: HmiButtonAction.ActivateScreen } b && b.TargetScreenId == id));
-        if (source is not null) throw new InvalidOperationException($"Screen '{source.Name}' contains a button referencing this screen. Remove or retarget that action first.");
+        if (p.Screens.Any(s => s.Id != id && s.Objects.Any(o => o.Runtime?.Action == HmiButtonAction.ActivateScreen && o.Runtime.ScreenId == id)))
+            throw new InvalidOperationException("Another screen has a button targeting this screen. Retarget or delete that button first.");
         p.Screens.Remove(Screen(p, id));
     });
     public static bool Accepts(HmiKind kind, PlcTag tag) => kind switch
@@ -80,9 +80,28 @@ public sealed class HmiEditor(Workspace workspace)
     };
     public static void ValidateBinding(ControlProject p, HmiObject o)
     {
+        if (o.Runtime is not null)
+        {
+            var screenIds = p.Screens.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+            if (HmiRuntimeRules.Validate(o, name => p.Tags.FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)), screenIds) is string error)
+                throw new ArgumentException(error);
+        }
         if (o.Tag.Length == 0) return;
         var tag = p.Tags.FirstOrDefault(t => t.Name.Equals(o.Tag, StringComparison.OrdinalIgnoreCase));
-        if (tag is null || !Accepts(o.Kind, tag)) throw new ArgumentException("Choose a compatible tag. Buttons use BOOL input-image tags; lamps use BOOL; numeric displays use numeric tags.");
+        if (tag is null || !HmiRuntimeRules.Accepts(o, tag)) throw new ArgumentException("Choose a compatible tag. Buttons use BOOL input-image tags; lamps use BOOL; numeric displays use numeric tags.");
+    }
+    private static void ValidatePastedBindings(ControlProject p, IReadOnlyList<HmiObject> objects)
+    {
+        var tags = p.Tags.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
+        var screens = p.Screens.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+        PlcTag? Find(string name) => tags.GetValueOrDefault(name);
+        foreach (var o in objects)
+        {
+            if (o.Text is null || o.Tag is null) throw new ArgumentException("Invalid clipboard object.");
+            if (HmiRuntimeRules.Validate(o, Find, screens) is string error) throw new ArgumentException(error);
+            if (o.Tag.Length > 0 && (!tags.TryGetValue(o.Tag, out var tag) || !HmiRuntimeRules.Accepts(o, tag)))
+                throw new ArgumentException("Choose a compatible HMI tag binding.");
+        }
     }
     public string AddObject(ControlProject expected, string screenId, HmiKind kind, PointD? position = null)
     {
@@ -207,7 +226,7 @@ public sealed class HmiEditor(Workspace workspace)
         if (!double.IsFinite(offset) || !double.IsFinite(box.X) || !double.IsFinite(box.Y) || !double.IsFinite(box.Width) || !double.IsFinite(box.Height) || box.Width > s.Width || box.Height > s.Height) throw new ArgumentException("The selection does not fit this screen.");
         double dx = Math.Clamp(box.X + offset, 0, s.Width - box.Width) - box.X, dy = Math.Clamp(box.Y + offset, 0, s.Height - box.Height) - box.Y;
         var copies = data.Objects.Select(o => o with { Id = Id(), X = o.X + dx, Y = o.Y + dy }).ToList();
-        Edit(expected, "Paste HMI objects", p => { foreach (var o in copies) { if (o.Text is null || o.Tag is null) throw new ArgumentException("Invalid clipboard object."); ValidateBinding(p, o); } Screen(p, screenId).Objects.AddRange(copies); });
+        Edit(expected, "Paste HMI objects", p => { ValidatePastedBindings(p, copies); Screen(p, screenId).Objects.AddRange(copies); });
         return copies.Select(o => o.Id).ToArray();
     }
     public IReadOnlyList<string> DuplicateObjects(ControlProject expected, string screenId, IEnumerable<string> ids) => Paste(expected, screenId, Copy(expected, screenId, ids));

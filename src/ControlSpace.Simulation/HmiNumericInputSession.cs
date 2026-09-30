@@ -21,14 +21,14 @@ public sealed class HmiNumericInputSession
             throw new InvalidOperationException("Compile the current project before entering values.");
         Object = project.Screens.FirstOrDefault(s => s.Id == screenId)?.Objects.FirstOrDefault(o => o.Id == objectId) ?? throw new ArgumentException("The input object no longer exists.");
         Tag = project.Tags.FirstOrDefault(t => t.Name.Equals(Object.Tag, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException("Bind this input to a compatible numeric tag first.");
-        if (Object.Kind != HmiKind.Numeric || Object.Numeric?.Editable != true || !HmiRuntimeOptions.CanEnter(Tag)) throw new ArgumentException("This object is not an editable numeric input.");
+        if (!HmiRuntimeRules.IsNumericInput(Object) || !HmiRuntimeRules.Accepts(Object, Tag)) throw new ArgumentException("This object is not an editable numeric input.");
         InitialValue = controller.Read(Tag.Name);
     }
     public double Commit(ControlProject project, VirtualPlc? controller, string text)
     {
         if (_completed || !ReferenceEquals(project, _project) || !ReferenceEquals(controller, _controller) || _controller.InteractionEpoch != _epoch)
             throw new InvalidOperationException("The project or controller changed. Cancel the entry and reopen it.");
-        double value = HmiRuntimeOptions.ParseInput(Object, Tag, text);
+        double value = HmiRuntimeRules.ParseInput(Object, Tag, text);
         _controller.SetOperatorValue(Tag.Name, value); _completed = true; return value;
     }
 }

@@ -86,10 +86,11 @@ public static partial class ProjectValidator
             Id(link.Id);
             if (!deviceIds.Contains(link.From) || !deviceIds.Contains(link.To) || link.From == link.To || link.Subnet is null) Error("CS035", "Network link references missing or identical devices.", link.Id);
         }
-        // Build runtime reference indexes only when a configured object needs them.
-        // Legacy projects and ordinary edit validation retain their existing fast path.
-        HashSet<string>? screenIds = null;
-        Dictionary<string, PlcTag>? hmiTags = null;
+        // Legacy projects pay no extra indexing cost. Build one shared lookup only
+        // when configured runtime behavior is actually present.
+        Dictionary<string, PlcTag>? runtimeTags = null;
+        IReadOnlySet<string>? runtimeScreens = null;
+        Func<string, PlcTag?>? findHmiTag = null;
         foreach (var screen in p.Screens)
         {
             if (screen is null || screen.Objects is null) { Error("CS040", "Incomplete HMI screen."); continue; }
@@ -101,15 +102,16 @@ public static partial class ProjectValidator
                 Id(o.Id);
                 if (!double.IsFinite(o.X) || !double.IsFinite(o.Y) || !double.IsFinite(o.Width) || !double.IsFinite(o.Height) || o.Width is <= 0 or > 8192 || o.Height is <= 0 or > 8192 || o.X < 0 || o.Y < 0 || o.X + o.Width > screen.Width || o.Y + o.Height > screen.Height) Error("CS043", "Invalid HMI geometry.", o.Id);
                 if (o.Text is null || o.Tag is null || o.Color is null || !Regex.IsMatch(o.Color, "^#[0-9A-Fa-f]{6}$")) Error("CS043", "Invalid HMI object text, binding or color.", o.Id);
-                if (o.Button is not null || o.Numeric is not null)
+                if (o.Runtime is not null)
                 {
-                    screenIds ??= p.Screens.Where(s => s is not null).Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
-                    if (hmiTags is null)
+                    if (runtimeTags is null)
                     {
-                        hmiTags = new(StringComparer.OrdinalIgnoreCase);
-                        foreach (var tag in p.Tags) if (tag?.Name is not null) hmiTags.TryAdd(tag.Name, tag);
+                        runtimeTags = new(StringComparer.OrdinalIgnoreCase);
+                        foreach (var tag in p.Tags) if (tag?.Name is string name) runtimeTags.TryAdd(name, tag);
+                        runtimeScreens = p.Screens.Where(s => s?.Id is not null).Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+                        findHmiTag = name => runtimeTags.GetValueOrDefault(name);
                     }
-                    if (HmiRuntimeOptions.Error(o, screenIds, hmiTags) is string runtimeError) Error("CS047", runtimeError, o.Id);
+                    if (HmiRuntimeRules.Validate(o, findHmiTag!, runtimeScreens!) is string runtimeError) Error("CS047", runtimeError, o.Id);
                 }
                 if (!Enum.IsDefined(o.Kind)) Error("CS044", "Unsupported HMI object.", o.Id);
                 if (HmiShapeGeometry.IsShape(o.Kind) && !string.IsNullOrEmpty(o.Tag)) Error("CS046", "Basic HMI shapes do not have a tag binding.", o.Id);
