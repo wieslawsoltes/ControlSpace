@@ -1,7 +1,9 @@
+using System.Text;
 using ControlSpace.Storage;
 using ControlSpace.Workbench.Uno;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using Windows.Storage.Provider;
 namespace ControlSpace.App;
 
 internal sealed class PlatformProjectFiles : IProjectFiles, IWorkbenchPreferences
@@ -18,7 +20,18 @@ internal sealed class PlatformProjectFiles : IProjectFiles, IWorkbenchPreference
         var picker = new FileSavePicker { SuggestedStartLocation = PickerLocationId.DocumentsLibrary, SuggestedFileName = name };
         picker.FileTypeChoices.Add(extension == ".csv" ? "CSV tag table" : "ControlSpace project", new List<string> { extension });
         var file = await picker.PickSaveFileAsync(); if (file is null) return false;
-        await FileIO.WriteTextAsync(file, contents); return true;
+        // The browser DownloadUpload picker returns a temporary file. Completing
+        // updates is what dispatches the actual download, not WriteTextAsync alone.
+        // On other Uno hosts this follows the same cross-platform save contract.
+        CachedFileManager.DeferUpdates(file);
+        // Write JSON as explicit UTF-8 bytes. FileIO.WriteTextAsync adds a BOM on
+        // some hosts, which strict JSON readers reject. Keep CSV text behavior.
+        if (extension == ".csv") await FileIO.WriteTextAsync(file, contents);
+        else await FileIO.WriteBytesAsync(file, Encoding.UTF8.GetBytes(contents));
+        var status = await CachedFileManager.CompleteUpdatesAsync(file);
+        if (status is not (FileUpdateStatus.Complete or FileUpdateStatus.CompleteAndRenamed))
+            throw new IOException("The selected file could not be finalized: " + status);
+        return true;
     }
     public async Task<string?> ReadRecoveryAsync()
     {

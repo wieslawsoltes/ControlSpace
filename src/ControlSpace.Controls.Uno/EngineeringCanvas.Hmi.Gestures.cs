@@ -20,8 +20,7 @@ public sealed partial class EngineeringCanvas
         if (HmiRuntime)
         {
             var id = HmiHit(point); var o = screen.Objects.FirstOrDefault(o => o.Id == id);
-            if (o?.Kind == HmiKind.Button && _hmiInput.Press(Controller, o.Tag))
-            { if (CapturePointer(e.Pointer)) _hmiPointer = e.Pointer.PointerId; else _hmiInput.Release(); HmiRuntimeChanged?.Invoke(); RequestRender(); }
+            PressHmiRuntime(o, e);
             e.Handled = true; return;
         }
         string? handle = HmiHandles().FirstOrDefault(h => h.Bounds.Contains(current.Position.X, current.Position.Y)).Handle;
@@ -71,7 +70,8 @@ public sealed partial class EngineeringCanvas
     private void HmiReleased(PointerRoutedEventArgs e)
     {
         if (_hmiPointer != e.Pointer.PointerId) return;
-        if (!HmiRuntime) HmiMoved(e);
+        if (HmiRuntime) { ReleaseHmiRuntime(e); e.Handled = true; return; }
+        HmiMoved(e);
         var expected = _hmiExpected; var boxes = _hmiBoxes; bool moved = _hmiMoved; string screenId = ScreenId;
         string[]? marqueeIds = null;
         if (_hmiMarquee is RectD box && HmiScreen is { } screen && moved)

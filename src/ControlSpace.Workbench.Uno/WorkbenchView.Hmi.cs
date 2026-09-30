@@ -28,6 +28,7 @@ public sealed partial class WorkbenchView
         _canvas.HmiCommandRequested += HmiCommand;
         _canvas.HmiEditRequested += id => { _canvas.SelectHmi([id]); _ = EditHmiObjectAsync(); };
         _canvas.HmiRuntimeChanged += UpdateRuntime;
+        _canvas.HmiActivationRequested += activation => _ = ActivateHmiRuntimeAsync(activation);
         _canvas.ViewportChanged += UpdateHmiChrome;
         _canvas.HmiContextRequested += position =>
         {
@@ -48,12 +49,16 @@ public sealed partial class WorkbenchView
             if (command == "properties") _ = EditHmiObjectAsync();
         };
     }
-    public void SuspendHmiInput() => _canvas.CancelHmiInteraction();
+    public void SuspendHmiInput()
+    {
+        _canvas.CancelHmiInteraction(); _hmiSession?.CancelPendingInput();
+        if (_hmiNumericDialog) _programDialog?.Hide();
+    }
     private void SetHmiRuntime(bool runtime) => Safe(() =>
     {
-        _canvas.CancelHmiInteraction(); if (runtime) EnsureController();
+        EndHmiRuntime(); if (runtime) { EnsureController(); _hmiSession = new(_workspace.Project, _workspace.Controller!, ActiveHmi.Id); }
         _hmiRuntime = runtime; _canvas.HmiRuntime = runtime; _canvas.RequestRender(); UpdateHmiChrome();
-        _status.Text = runtime ? "HMI runtime preview · momentary BOOL input buttons · simulation only" : "HMI design · Ctrl/Shift for multiple selection · drag handles to resize · Alt bypasses snapping";
+        _status.Text = runtime ? "HMI runtime · configured buttons and confirmed numeric input · simulation only" : "HMI design · Ctrl/Shift for multiple selection · drag handles to resize · Alt bypasses snapping";
     });
     private void BuildHmiTools()
     {
@@ -64,6 +69,7 @@ public sealed partial class WorkbenchView
         Add("Fit", "fit", "hmi-fit"); Add("100%", "100", "hmi-100"); Add("−", "zoom-out", "hmi-zoom-out"); Add("+", "zoom-in", "hmi-zoom-in");
         Add("Grid", "grid", "hmi-grid"); Add("Snap", "snap", "hmi-snap");
         Add("Objects", "objects", "hmi-objects"); Add("Properties…", "properties", "hmi-properties");
+        Add("Runtime settings…", "runtime-properties", "hmi-runtime-settings");
         var arrange = Button("Align / size", () => { }, "hmi-arrange"); var flyout = new MenuFlyout();
         foreach (var op in Enum.GetValues<HmiArrange>()) { var item = new MenuFlyoutItem { Text = ArrangeCaption(op) }; item.Click += (_, _) => HmiCommand("arrange:" + op); AutomationProperties.SetAutomationId(item, "hmi-arrange-" + op); flyout.Items.Add(item); } arrange.Flyout = flyout; _editorTools.Children.Add(arrange);
         var order = Button("Order", () => { }, "hmi-order"); var orderFlyout = new MenuFlyout();
@@ -80,7 +86,7 @@ public sealed partial class WorkbenchView
         {
             bool active = id switch { "hmi-design" => !_hmiRuntime, "hmi-runtime" => _hmiRuntime, "hmi-fit" => _canvas.HmiFit, "hmi-grid" => _canvas.HmiGrid, "hmi-snap" => _canvas.HmiSnap, _ => false };
             button.Background = Brush(active ? "C9DCF0" : "E7E7EA");
-            if (id is "hmi-duplicate" or "hmi-delete" or "hmi-properties") button.IsEnabled = !_hmiRuntime && _canvas.HmiSelection.Count > 0 && _workspace.Controller?.State != ControlSpace.Simulation.ControllerState.Running;
+            if (id is "hmi-duplicate" or "hmi-delete" or "hmi-properties" or "hmi-runtime-settings") button.IsEnabled = !_hmiRuntime && _canvas.HmiSelection.Count > 0 && _workspace.Controller?.State != ControlSpace.Simulation.ControllerState.Running;
         }
         _zoomLabel.Text = $"{_canvas.HmiTransform.Scale * 100:0}%";
     }
@@ -132,6 +138,7 @@ public sealed partial class WorkbenchView
         if (command == "screen-properties") { if (screenId is not null) _ = EditHmiScreenAsync(screenId); return; }
         if (command == "screen-delete") { if (screenId is not null) _ = DeleteHmiScreenAsync(screenId); return; }
         if (command == "properties") { _ = EditHmiObjectAsync(); return; }
+        if (command == "runtime-properties") { _ = EditHmiRuntimeOptionsAsync(); return; }
         if (command is "copy" or "cut" or "paste") { _ = HmiClipboardAsync(command); return; }
         Safe(() =>
         {
@@ -203,6 +210,12 @@ public sealed partial class WorkbenchView
         _properties.Children.Add(PropertyRow(objects.Length == 1 ? "Tag binding" : "Alignment reference", Label(objects.Length == 1 ? objects[0].Tag : objects[0].Text)));
         var tools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         tools.Children.Add(Button("Properties…", () => _ = EditHmiObjectAsync(), "hmi-inspector-properties")); tools.Children.Add(Button("Duplicate", () => HmiCommand("duplicate"), "hmi-inspector-duplicate")); tools.Children.Add(Button("Delete", () => HmiCommand("delete"), "hmi-inspector-delete")); _properties.Children.Add(tools);
+        if (objects.Length == 1 && (objects[0].Kind == HmiKind.Button || HmiRuntimeRules.IsNumeric(objects[0].Kind)))
+        {
+            var o = objects[0]; string mode = o.Kind == HmiKind.Button ? HmiRuntimeRules.Action(o).ToString() : (o.Runtime?.IoMode ?? HmiIoMode.Output).ToString();
+            _properties.Children.Add(PropertyRow("Runtime behavior", Label(mode)));
+            _properties.Children.Add(Button("Configure runtime…", () => _ = EditHmiRuntimeOptionsAsync(), "hmi-configure-runtime"));
+        }
         if (objects.Length > 1)
         {
             var align = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
@@ -249,7 +262,7 @@ public sealed partial class WorkbenchView
             var text = DialogField(panel, "Text", o.Text, "hmi-object-text", true);
             panel.Children.Add(Label("Tag binding", 12, bold: true));
             var binding = new AutoSuggestBox { Text = o.Tag, PlaceholderText = "Unbound", MinHeight = 30 }; AutomationProperties.SetAutomationId(binding, "hmi-object-tag"); panel.Children.Add(binding);
-            binding.TextChanged += (_, _) => binding.ItemsSource = expected.Tags.Where(t => HmiEditor.Accepts(o.Kind, t) && t.Name.Contains(binding.Text, StringComparison.OrdinalIgnoreCase)).Take(30).Select(t => t.Name).ToArray();
+            binding.TextChanged += (_, _) => binding.ItemsSource = expected.Tags.Where(t => HmiRuntimeRules.Accepts(o, t) && t.Name.Contains(binding.Text, StringComparison.OrdinalIgnoreCase)).Take(30).Select(t => t.Name).ToArray();
             binding.SuggestionChosen += (_, e) => binding.Text = e.SelectedItem?.ToString() ?? "";
             var geometry = new Grid { ColumnSpacing = 8 }; geometry.ColumnDefinitions.Add(new()); geometry.ColumnDefinitions.Add(new());
             var left = new StackPanel { Spacing = 6 }; var right = new StackPanel { Spacing = 6 }; geometry.Children.Add(left); Grid.SetColumn(right, 1); geometry.Children.Add(right); panel.Children.Add(geometry);

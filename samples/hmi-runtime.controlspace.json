@@ -1,0 +1,533 @@
+{
+  "format": "controlspace.project",
+  "version": 1,
+  "id": "operator-runtime-demo",
+  "name": "Operator_Runtime_Demo",
+  "revision": 0,
+  "tags": [
+    {
+      "name": "Start_PB",
+      "type": "Bool",
+      "address": "%I0.0",
+      "initialValue": 0,
+      "comment": "Start conveyor",
+      "retain": false
+    },
+    {
+      "name": "Stop_PB",
+      "type": "Bool",
+      "address": "%I0.1",
+      "initialValue": 0,
+      "comment": "Stop conveyor (simulation only)",
+      "retain": false
+    },
+    {
+      "name": "Part_Sensor",
+      "type": "Bool",
+      "address": "%I0.2",
+      "initialValue": 0,
+      "comment": "Product detection",
+      "retain": false
+    },
+    {
+      "name": "Reset_Count",
+      "type": "Bool",
+      "address": "%I0.3",
+      "initialValue": 0,
+      "comment": "Reset production counter",
+      "retain": false
+    },
+    {
+      "name": "Motor_Run",
+      "type": "Bool",
+      "address": "%Q0.0",
+      "initialValue": 0,
+      "comment": "Conveyor motor enable",
+      "retain": false
+    },
+    {
+      "name": "Ready_Lamp",
+      "type": "Bool",
+      "address": "%Q0.1",
+      "initialValue": 0,
+      "comment": "Run-up complete",
+      "retain": false
+    },
+    {
+      "name": "Run_Delay",
+      "type": "Bool",
+      "address": "%M0.0",
+      "initialValue": 0,
+      "comment": "TON output",
+      "retain": false
+    },
+    {
+      "name": "Delay_ET",
+      "type": "Time",
+      "address": "%MD4",
+      "initialValue": 0,
+      "comment": "Elapsed run-up time",
+      "retain": false
+    },
+    {
+      "name": "Part_Count",
+      "type": "DInt",
+      "address": "%MD8",
+      "initialValue": 0,
+      "comment": "Rising-edge product count",
+      "retain": true
+    },
+    {
+      "name": "Speed_Setpoint",
+      "type": "Real",
+      "address": "%MD12",
+      "initialValue": 65,
+      "comment": "Conveyor setpoint (%)",
+      "retain": true
+    },
+    {
+      "name": "Speed_Actual",
+      "type": "Real",
+      "address": "%MD16",
+      "initialValue": 0,
+      "comment": "Simulated conveyor speed (%)",
+      "retain": false
+    },
+    {
+      "name": "Manual_Enable",
+      "type": "Bool",
+      "address": "%M40.0",
+      "initialValue": 0,
+      "comment": "HMI one-shot marker actions",
+      "retain": false
+    }
+  ],
+  "blocks": [
+    {
+      "id": "main",
+      "name": "Main",
+      "number": 1,
+      "language": "LAD",
+      "cyclic": true,
+      "source": "",
+      "networks": [
+        {
+          "id": "net-start",
+          "title": "Conveyor start / stop",
+          "comment": "Seal-in circuit • Start_PB or Motor_Run, inhibited by Stop_PB.",
+          "branches": [
+            [
+              {
+                "id": "start",
+                "kind": "Contact",
+                "tag": "Start_PB",
+                "parameter": 0,
+                "auxiliary": ""
+              },
+              {
+                "id": "stop",
+                "kind": "NegatedContact",
+                "tag": "Stop_PB",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ],
+            [
+              {
+                "id": "hold",
+                "kind": "Contact",
+                "tag": "Motor_Run",
+                "parameter": 0,
+                "auxiliary": ""
+              },
+              {
+                "id": "stop-hold",
+                "kind": "NegatedContact",
+                "tag": "Stop_PB",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ]
+          ],
+          "output": {
+            "id": "coil",
+            "kind": "Coil",
+            "tag": "Motor_Run",
+            "parameter": 0,
+            "auxiliary": ""
+          }
+        },
+        {
+          "id": "net-delay",
+          "title": "Run-up delay",
+          "comment": "Signal ready after the motor has been running for two seconds.",
+          "branches": [
+            [
+              {
+                "id": "run-contact",
+                "kind": "Contact",
+                "tag": "Motor_Run",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ]
+          ],
+          "output": {
+            "id": "ton",
+            "kind": "TimerOn",
+            "tag": "Run_Delay",
+            "parameter": 2000,
+            "auxiliary": "Delay_ET"
+          }
+        },
+        {
+          "id": "net-ready",
+          "title": "Ready indication",
+          "comment": "Enable the ready indicator after the run-up time.",
+          "branches": [
+            [
+              {
+                "id": "ready-contact",
+                "kind": "Contact",
+                "tag": "Run_Delay",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ]
+          ],
+          "output": {
+            "id": "ready-coil",
+            "kind": "Coil",
+            "tag": "Ready_Lamp",
+            "parameter": 0,
+            "auxiliary": ""
+          }
+        },
+        {
+          "id": "net-count",
+          "title": "Production counter",
+          "comment": "Count rising edges at the product sensor; Reset_Count resets the count.",
+          "branches": [
+            [
+              {
+                "id": "part-contact",
+                "kind": "Contact",
+                "tag": "Part_Sensor",
+                "parameter": 0,
+                "auxiliary": ""
+              }
+            ]
+          ],
+          "output": {
+            "id": "ctu",
+            "kind": "CountUp",
+            "tag": "Part_Count",
+            "parameter": 0,
+            "auxiliary": "Reset_Count"
+          }
+        }
+      ]
+    },
+    {
+      "id": "speed",
+      "name": "Speed_Control",
+      "number": 2,
+      "language": "SCL",
+      "cyclic": true,
+      "networks": [],
+      "source": "// Cyclic speed control — simulation only\nIF \"Motor_Run\" THEN\n    \"Speed_Actual\" := \"Speed_Setpoint\";\nELSE\n    \"Speed_Actual\" := 0;\nEND_IF;\n"
+    }
+  ],
+  "devices": [
+    {
+      "id": "plc",
+      "name": "PLC_1",
+      "kind": "Controller",
+      "model": "Generic CPU 1500 · simulation",
+      "ipAddress": "192.168.0.1",
+      "x": 50,
+      "y": 100,
+      "modules": [
+        "CPU",
+        "DI 16×24 V",
+        "DQ 16×24 V"
+      ]
+    },
+    {
+      "id": "hmi",
+      "name": "HMI_1",
+      "kind": "Hmi",
+      "model": "Comfort panel · simulation",
+      "ipAddress": "192.168.0.2",
+      "x": 385,
+      "y": 100,
+      "modules": []
+    },
+    {
+      "id": "io",
+      "name": "IO_Station",
+      "kind": "RemoteIo",
+      "model": "Remote I/O · simulation",
+      "ipAddress": "192.168.0.3",
+      "x": 710,
+      "y": 100,
+      "modules": [
+        "IM",
+        "DI 8",
+        "DQ 8"
+      ]
+    }
+  ],
+  "links": [
+    {
+      "id": "link1",
+      "from": "plc",
+      "to": "hmi",
+      "subnet": "PN/IE_1"
+    },
+    {
+      "id": "link2",
+      "from": "hmi",
+      "to": "io",
+      "subnet": "PN/IE_1"
+    }
+  ],
+  "screens": [
+    {
+      "id": "operator",
+      "name": "Operator station",
+      "width": 960,
+      "height": 540,
+      "objects": [
+        {
+          "id": "heading",
+          "kind": "Label",
+          "text": "CONVEYOR / OPERATOR STATION",
+          "tag": "",
+          "x": 32,
+          "y": 22,
+          "width": 750,
+          "height": 42,
+          "color": "#008C95"
+        },
+        {
+          "id": "subheading",
+          "kind": "Label",
+          "text": "Configured numeric entry and simulation-only actions",
+          "tag": "",
+          "x": 32,
+          "y": 70,
+          "width": 790,
+          "height": 30,
+          "color": "#60717D"
+        },
+        {
+          "id": "setpoint",
+          "kind": "Numeric",
+          "text": "SPEED SETPOINT",
+          "tag": "Speed_Setpoint",
+          "x": 36,
+          "y": 128,
+          "width": 300,
+          "height": 132,
+          "color": "#008C95",
+          "runtime": {
+            "ioMode": "InputOutput",
+            "minimum": 0,
+            "maximum": 200,
+            "decimalPlaces": 1,
+            "unit": "%"
+          }
+        },
+        {
+          "id": "hmi-speed",
+          "kind": "Gauge",
+          "text": "ACTUAL SPEED",
+          "tag": "Speed_Actual",
+          "x": 380,
+          "y": 128,
+          "width": 300,
+          "height": 180,
+          "color": "#008C95",
+          "runtime": {
+            "minimum": 0,
+            "maximum": 200,
+            "decimalPlaces": 1,
+            "unit": "%"
+          }
+        },
+        {
+          "id": "motor",
+          "kind": "Lamp",
+          "text": "MOTOR",
+          "tag": "Motor_Run",
+          "x": 36,
+          "y": 296,
+          "width": 300,
+          "height": 70,
+          "color": "#008C95"
+        },
+        {
+          "id": "preset",
+          "kind": "Button",
+          "text": "SET 75%",
+          "tag": "Speed_Setpoint",
+          "x": 36,
+          "y": 392,
+          "width": 180,
+          "height": 56,
+          "color": "#31699B",
+          "runtime": {
+            "action": "SetValue",
+            "writeValue": 75
+          }
+        },
+        {
+          "id": "details",
+          "kind": "Button",
+          "text": "DETAILS →",
+          "tag": "",
+          "x": 250,
+          "y": 392,
+          "width": 180,
+          "height": 56,
+          "color": "#31699B",
+          "runtime": {
+            "action": "ActivateScreen",
+            "screenId": "operator-details"
+          }
+        },
+        {
+          "id": "hmi-start",
+          "kind": "Button",
+          "text": "START",
+          "tag": "Start_PB",
+          "x": 480,
+          "y": 392,
+          "width": 180,
+          "height": 56,
+          "color": "#008C95"
+        },
+        {
+          "id": "hmi-stop",
+          "kind": "Button",
+          "text": "STOP",
+          "tag": "Stop_PB",
+          "x": 690,
+          "y": 392,
+          "width": 180,
+          "height": 56,
+          "color": "#B65045"
+        },
+        {
+          "id": "notice",
+          "kind": "Label",
+          "text": "All values are simulated. This application does not control machinery.",
+          "tag": "",
+          "x": 36,
+          "y": 484,
+          "width": 870,
+          "height": 28,
+          "color": "#75666C"
+        }
+      ]
+    },
+    {
+      "id": "operator-details",
+      "name": "Operator details",
+      "width": 960,
+      "height": 540,
+      "objects": [
+        {
+          "id": "detail-title",
+          "kind": "Label",
+          "text": "OPERATOR DETAILS",
+          "tag": "",
+          "x": 36,
+          "y": 26,
+          "width": 700,
+          "height": 46,
+          "color": "#008C95"
+        },
+        {
+          "id": "manual-lamp",
+          "kind": "Lamp",
+          "text": "MANUAL ENABLE",
+          "tag": "Manual_Enable",
+          "x": 36,
+          "y": 116,
+          "width": 270,
+          "height": 90,
+          "color": "#008C95"
+        },
+        {
+          "id": "toggle",
+          "kind": "Button",
+          "text": "TOGGLE MANUAL",
+          "tag": "Manual_Enable",
+          "x": 36,
+          "y": 248,
+          "width": 230,
+          "height": 60,
+          "color": "#31699B",
+          "runtime": {
+            "action": "ToggleBit"
+          }
+        },
+        {
+          "id": "set-manual",
+          "kind": "Button",
+          "text": "SET MANUAL",
+          "tag": "Manual_Enable",
+          "x": 298,
+          "y": 248,
+          "width": 230,
+          "height": 60,
+          "color": "#31699B",
+          "runtime": {
+            "action": "SetBit"
+          }
+        },
+        {
+          "id": "reset-manual",
+          "kind": "Button",
+          "text": "RESET MANUAL",
+          "tag": "Manual_Enable",
+          "x": 560,
+          "y": 248,
+          "width": 230,
+          "height": 60,
+          "color": "#31699B",
+          "runtime": {
+            "action": "ResetBit"
+          }
+        },
+        {
+          "id": "back",
+          "kind": "Button",
+          "text": "← PREVIOUS SCREEN",
+          "tag": "",
+          "x": 36,
+          "y": 408,
+          "width": 270,
+          "height": 60,
+          "color": "#31699B",
+          "runtime": {
+            "action": "PreviousScreen"
+          }
+        },
+        {
+          "id": "detail-note",
+          "kind": "Label",
+          "text": "One-shot marker writes are not forces and may be overwritten by a program scan.",
+          "tag": "",
+          "x": 36,
+          "y": 330,
+          "width": 850,
+          "height": 46,
+          "color": "#60717D"
+        }
+      ]
+    }
+  ]
+}

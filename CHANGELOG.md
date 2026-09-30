@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — configurable HMI runtime
+
+- Added optional immutable runtime options, numeric Output/Input/InputOutput modes, validated ranges, decimal precision and units.
+- Added guarded one-shot simulator input/marker writes, SetBit/ResetBit/ToggleBit/SetValue button actions and bounded screen navigation/history.
+- Added release-over-target dispatch and invalidation of pending numeric entries across screen/session/controller lifecycle changes.
+- Protected navigation references during deletion, duplication and clipboard paste; retained tag rename and undo semantics.
+- Shared configured numeric drawing between the public renderer and Uno designer/runtime, without changing legacy object defaults.
+- Added native source regressions, eight browser scenario groups, an operator sample and a runtime guide. See commit-specific checks for validation; these entries are not test-pass evidence.
+
 ## Unreleased — HMI basic graphics
 
 - Added rectangle, ellipse and line objects to the shared Uno toolbox and both Skia HMI rendering APIs.

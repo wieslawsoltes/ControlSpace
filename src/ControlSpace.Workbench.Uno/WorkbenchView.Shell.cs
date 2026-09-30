@@ -231,7 +231,15 @@ public sealed partial class WorkbenchView
             var accelerator = new KeyboardAccelerator { Key = key, Modifiers = modifiers };
             accelerator.Invoked += (_, e) => { if (textOwnsUndo && FocusManager.GetFocusedElement(XamlRoot) is TextBox) return; Safe(action); e.Handled = true; }; KeyboardAccelerators.Add(accelerator);
         }
-        Key(VirtualKey.F7, VirtualKeyModifiers.None, Compile); Key(VirtualKey.F5, VirtualKeyModifiers.None, Run); Key(VirtualKey.Escape, VirtualKeyModifiers.None, Stop);
+        Key(VirtualKey.F7, VirtualKeyModifiers.None, Compile); Key(VirtualKey.F5, VirtualKeyModifiers.None, Run);
+        Key(VirtualKey.Escape, VirtualKeyModifiers.None, () =>
+        {
+            // A buffered numeric entry owns Escape even on backends that process
+            // accelerators before TextBox.KeyDown. Cancelling it must not stop scans.
+            if (_hmiNumericDialog && _programDialog is not null)
+            { _hmiSession?.CancelPendingInput(); _programDialog.Hide(); }
+            else Stop();
+        });
         Key(VirtualKey.S, VirtualKeyModifiers.Control, () => _ = SaveAsync()); Key(VirtualKey.O, VirtualKeyModifiers.Control, () => _ = OpenAsync());
         Key(VirtualKey.Z, VirtualKeyModifiers.Control, _workspace.Undo, true); Key(VirtualKey.Y, VirtualKeyModifiers.Control, _workspace.Redo, true);
         Key(VirtualKey.W, VirtualKeyModifiers.Control, () => CloseDocument(_view)); Key(VirtualKey.F6, VirtualKeyModifiers.Control, () => CycleDocument(1)); Key(VirtualKey.F6, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, () => CycleDocument(-1));
