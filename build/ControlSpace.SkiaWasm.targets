@@ -2,6 +2,7 @@
   <!-- SkiaSharp 4.153 adds C++20 flags to the final emcc invocation, including
        Uno 6.7's raw C GL shim. Wrap the package source as C++ with C linkage;
        do not edit the package, drop the shim, or disable WebGL/WebGPU support.
+       Include SDK headers before extern C so their templates retain C++ linkage.
        Run before Bootstrap translates WasmShellNativeCompile into link inputs. -->
   <Target Name="ControlSpacePrepareUnoGlShim"
           BeforeTargets="_UnoAdjustCompatibility"
@@ -20,7 +21,7 @@
     </PropertyGroup>
     <MakeDir Directories="$(_ControlSpaceGlShimDirectory)" Condition="'@(_ControlSpaceCGlShim)' != ''" />
     <WriteLinesToFile File="$(_ControlSpaceGlShimCpp)"
-                      Lines="extern &quot;C&quot; {%0A#include &quot;$(_ControlSpaceGlShimSource)&quot;%0A}"
+                      Lines="#include &lt;GLES3/gl3.h&gt;%0A#include &lt;emscripten.h&gt;%0A#include &lt;emscripten/html5_webgl.h&gt;%0A#include &lt;string.h&gt;%0A#include &lt;stdint.h&gt;%0Aextern &quot;C&quot; {%0A#include &quot;$(_ControlSpaceGlShimSource)&quot;%0A}"
                       Overwrite="true" WriteOnlyWhenDifferent="true"
                       Condition="'@(_ControlSpaceCGlShim)' != ''" />
     <ItemGroup Condition="'@(_ControlSpaceCGlShim)' != ''">
