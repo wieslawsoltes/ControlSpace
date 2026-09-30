@@ -1,12 +1,20 @@
 # HMI screen design
 
-The shared Uno workbench has an offline HMI designer for the six ControlSpace objects: text label, momentary button, Boolean lamp, numeric display, percentage tank and percentage gauge. It is an original engineering preview, not a complete WinCC or Siemens TIA Portal implementation. No controller transport or safety function is present.
+The shared Uno workbench has an offline HMI designer for nine ControlSpace objects: text label, momentary button, Boolean lamp, numeric display, percentage tank, percentage gauge, rectangle, ellipse and line. It is an original engineering preview, not a complete WinCC or Siemens TIA Portal implementation. No controller transport or safety function is present.
 
 ## Screen workflow
 
 Open an existing screen from the project tree. Use **Screens** in its toolbar, or **View > HMI screen overview**, for the screen directory. Create, rename, resize, duplicate and delete screens. The directory supports search and keyboard opening. Screen names are unique case-insensitively; dimensions are 100–8192 pixels. A resize which would place existing objects outside the screen is rejected rather than silently cropping or moving them. Duplicating a screen creates fresh screen/object identifiers. Deletion is confirmed and undoable; deleting the last screen is allowed.
 
-The **Toolbox** inserts labels, buttons, lamps, tanks, numeric displays and gauges. The **Objects** card lists them front-to-back and supports filtering and multiple selection. The list uses Uno's virtualizing ListView rather than instantiating one control for every object. It does not create persistent object groups or layers: a multiple selection is temporary view state.
+The **Toolbox** inserts labels, buttons, lamps, tanks, numeric displays, gauges and the three basic shapes. The **Objects** card lists them front-to-back and supports filtering and multiple selection. The list uses Uno's virtualizing ListView rather than instantiating one control for every object. It does not create persistent object groups or layers: a multiple selection is temporary view state.
+
+## Basic graphics
+
+Rectangle and ellipse objects use a solid fill. A circle is an ellipse with equal width and height. Lines have a two-screen-pixel stroke (reduced for smaller legacy bounds), round ends, and run from the top-left to the bottom-right of their positive-size bounding box; height or width of one pixel gives a horizontal or vertical segment. Independent endpoint editing, negative-slope lines, rotations, borders, dash styles, fill patterns and gradients are not implemented.
+
+These shapes share geometry, color, clipboard, duplication, z-order, group transforms and undo with the other objects. Their Text property is a description in the object list, not text painted onto the shape. Shapes have no PLC tag binding; property edits, imports and pastes reject a nonempty binding. Ellipse selection tests the filled oval, allowing clicks through transparent corners to objects below it. Line selection uses its stroke with a four-view-pixel pointer tolerance rather than the entire bounding rectangle. Existing six control types retain their rectangular hit behavior. Both the public Skia Hmi/HmiView API and the Uno HmiDesigner renderer draw the new primitives.
+
+Projects with these kinds retain the ControlSpace version-1 envelope, but older builds reject the unfamiliar enum values. The separately labelled JavaScript interaction prototype still supports its original six HMI kinds and rejects shape-bearing projects; it is not the compiled Uno runtime.
 
 ## Selection, geometry and arrangement
 
@@ -36,10 +44,10 @@ The release controller is the instance that received the press, not whichever in
 
 ## Reuse and tests
 
-`HmiEditor` and `HmiTransformSession` are in Engineering; `HmiViewportTransform` is in Core; `HmiMomentaryInput` is in Simulation. `EngineeringRenderer.HmiDesigner` is the shared Skia renderer. The canvas, viewport and `HmiExplorer` are public Uno controls. The workbench supplies commands and dialogs; the app supplies file/clipboard/lifecycle integration.
+`HmiShapeGeometry` is in Core and provides common line endpoints and shape-aware hit tests. `HmiEditor` and `HmiTransformSession` are in Engineering; `HmiViewportTransform` is in Core; `HmiMomentaryInput` is in Simulation. `EngineeringRenderer.HmiDesigner` is the shared Skia renderer. The canvas, viewport and `HmiExplorer` are public Uno controls. The workbench supplies commands and dialogs; the app supplies file/clipboard/lifecycle integration.
 
-Run `dotnet run --project tests/ControlSpace.Hmi.Tests -c Release` for engine/geometry/clipboard/runtime/rendering regression groups. The Pages workflow additionally runs `tests/browser/hmi_editor.py` against the actual compiled Uno application. It uses normal pointer/keyboard/clipboard/file-picker operations; the optional verification probe only exposes read-only telemetry. CI artifacts are the source of truth for each revision's pass/fail status. Tests include a 10,000-object screen, but counts of drawn objects and realized rows are not end-to-end speedup measurements.
+Run `dotnet run --project tests/ControlSpace.Hmi.Tests -c Release` for engine/geometry/clipboard/runtime/rendering regression groups. The Pages workflow additionally runs `tests/browser/hmi_editor.py` and `tests/browser/hmi_shapes.py` against the actual compiled Uno application. It uses normal pointer/keyboard/clipboard/file-picker operations; the optional verification probe only exposes read-only telemetry. CI artifacts are the source of truth for each revision's pass/fail status. Tests include a 10,000-object screen, but counts of drawn objects and realized rows are not end-to-end speedup measurements.
 
 ## Remaining HMI/TIA boundaries
 
-Unsupported areas include alarms and acknowledgement, recipes, historical process archives, faceplates/templates, persistent groups/layers, vector/image import, rotations, gradients, full typography/localization, animation bindings, screen-navigation events, arbitrary scripting, numeric input, user/role authentication, remote clients, PLC communications, manufacturer project formats and complete WinCC runtime behavior. The current six objects and editing workflow are not full or pixel-exact parity. Native desktop interaction, touch-device usability, high-DPI equivalence and physical-GPU throughput require separate qualification.
+Unsupported areas include alarms and acknowledgement, recipes, historical process archives, faceplates/templates, persistent groups/layers, vector/image import, rotations, gradients, full typography/localization, animation bindings, screen-navigation events, arbitrary scripting, numeric input, user/role authentication, remote clients, PLC communications, manufacturer project formats and complete WinCC runtime behavior. The current nine objects and editing workflow are not full or pixel-exact parity. Native desktop interaction, touch-device usability, high-DPI equivalence and physical-GPU throughput require separate qualification.

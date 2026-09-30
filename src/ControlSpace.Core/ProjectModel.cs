@@ -4,7 +4,7 @@ public enum PlcType { Bool, Int, DInt, Real, Time }
 public enum BlockLanguage { LAD, SCL }
 public enum InstructionKind { Contact, NegatedContact, RisingEdge, FallingEdge, Greater, Less, Equal, Coil, SetCoil, ResetCoil, TimerOn, TimerOff, Pulse, CountUp, Move }
 public enum DeviceKind { Controller, Hmi, RemoteIo, Switch }
-public enum HmiKind { Label, Button, Lamp, Tank, Numeric, Gauge }
+public enum HmiKind { Label, Button, Lamp, Tank, Numeric, Gauge, Rectangle, Ellipse, Line }
 public enum Severity { Info, Warning, Error }
 
 public sealed record PlcTag(string Name, PlcType Type, string Address, double InitialValue = 0, string Comment = "", bool Retain = false);

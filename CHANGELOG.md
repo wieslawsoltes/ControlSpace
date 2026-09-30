@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — HMI basic graphics
+
+- Added rectangle, ellipse and line objects to the shared Uno toolbox and both Skia HMI rendering APIs.
+- Added filled-ellipse and line-stroke hit tests, including transparent-corner click-through and zoom-correct line tolerance.
+- Shapes participate in existing geometry edits, group transforms, clipboard, ordering and undo; invalid tag bindings are rejected.
+- Added native geometry/roundtrip/rendering regressions and real pointer/clipboard/browser shape workflows.
+- Older builds and the separate six-object JavaScript prototype do not accept shape-bearing projects; detailed line/style limitations are in docs/hmi-design.md.
+
 ## Unreleased — project navigation responsiveness
 
 - Recycled project-tree rows only for the viewport and overscan; retained an indexed outline across source, tag-value, network and HMI-object edits which do not alter it.

@@ -32,6 +32,10 @@ public sealed partial class EngineeringRenderer
             canvas.Save(); canvas.ClipRect(new SKRect(x, y, x + w, y + h));
             switch (o.Kind)
             {
+                case HmiKind.Rectangle:
+                case HmiKind.Ellipse:
+                case HmiKind.Line:
+                    DrawHmiShape(canvas, o, color); break;
                 case HmiKind.Label:
                     string[] lines = (o.Text.Length > 2048 ? o.Text[..2048] : o.Text).Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
                     float size = Math.Clamp(h / Math.Max(1, Math.Min(lines.Length, 20)) * .62f, 6, 26);
@@ -63,7 +67,9 @@ public sealed partial class EngineeringRenderer
             }
             canvas.Restore();
             if (!runtime && selected.Contains(o.Id))
-            { Color(SKColor.Parse("#3181C1"), true, 1 / scale); canvas.DrawRect(x, y, w, h, _paint); }
+            {
+                Color(SKColor.Parse("#397FC0"), true, 1 / scale); canvas.DrawRect(x, y, w, h, _paint);
+            }
         }
         if (!runtime)
         {

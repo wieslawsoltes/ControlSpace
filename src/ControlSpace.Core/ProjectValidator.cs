@@ -98,6 +98,7 @@ public static partial class ProjectValidator
                 if (!double.IsFinite(o.X) || !double.IsFinite(o.Y) || !double.IsFinite(o.Width) || !double.IsFinite(o.Height) || o.Width is <= 0 or > 8192 || o.Height is <= 0 or > 8192 || o.X < 0 || o.Y < 0 || o.X + o.Width > screen.Width || o.Y + o.Height > screen.Height) Error("CS043", "Invalid HMI geometry.", o.Id);
                 if (o.Text is null || o.Tag is null || o.Color is null || !Regex.IsMatch(o.Color, "^#[0-9A-Fa-f]{6}$")) Error("CS043", "Invalid HMI object text, binding or color.", o.Id);
                 if (!Enum.IsDefined(o.Kind)) Error("CS044", "Unsupported HMI object.", o.Id);
+                if (HmiShapeGeometry.IsShape(o.Kind) && !string.IsNullOrEmpty(o.Tag)) Error("CS046", "Basic HMI shapes do not have a tag binding.", o.Id);
                 if (!string.IsNullOrEmpty(o.Tag) && !names.Contains(o.Tag)) Error("CS045", "HMI tag does not exist.", o.Id);
             }
         }
