@@ -165,10 +165,15 @@ async def main():
             saved = await download.value
             path = args.output/'runtime-export.controlspace.json'
             await saved.save_as(str(path))
-            exported = json.loads(path.read_text())
+            payload = path.read_bytes()
+            assert not payload.startswith(b'\xef\xbb\xbf'), 'JSON exports must be UTF-8 without a BOM'
+            exported = json.loads(payload.decode('utf-8'))
             item = next(o for s in exported['screens'] if s['id']=='operator' for o in s['objects'] if o['id']=='setpoint')
             assert item['runtime']['maximum'] == 120 and item['runtime']['ioMode'] == 'InputOutput'
             assert exported['revision'] == revision
+            original = json.loads(fixture.read_text(encoding='utf-8'))
+            assert exported['tags'] == original['tags'], 'Operator writes must not alter saved initial values'
+            assert exported['blocks'] == original['blocks'], 'Export must preserve source text and Unicode comments'
             passed('project export retains configured behavior without exporting runtime values')
             assert not errors, errors
             assert not [m for m in logs if m['type']=='error'], logs
