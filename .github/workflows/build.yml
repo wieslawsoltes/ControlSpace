@@ -29,6 +29,8 @@ jobs:
         run: dotnet run --project tests/ControlSpace.Table.Tests -c Release
       - name: Project navigation regressions
         run: dotnet run --project tests/ControlSpace.Navigation.Tests -c Release
+      - name: HMI authoring and rendering regressions
+        run: dotnet run --project tests/ControlSpace.Hmi.Tests -c Release
       - name: Program and ladder authoring regressions
         run: dotnet run --project tests/ControlSpace.Program.Tests -c Release
       - name: Allocation, rendering and snapshot regression tests

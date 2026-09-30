@@ -47,13 +47,14 @@ public sealed partial class WorkbenchView
         string card = _layout.TaskCard == "Instructions"
             ? IsHmiView ? "HMI" : _view == "devices" ? "Devices" : "Instructions"
             : _layout.TaskCard;
-        var key = (card is "Libraries" or "Devices" ? _workspace.Project : null, card, _paletteFilter);
+        var key = (card is "Libraries" or "Devices" or "HMI" ? _workspace.Project : null, card == "HMI" ? card + _view + _hmiObjectCard : card, _paletteFilter);
         if (_paletteKey == key) return false;
         _paletteKey = key; return true;
     }
     private void UpdateRuntime()
     {
         var c = _workspace.Controller;
+        UpdateHmiChrome();
         if (_source is not null) _source.IsReadOnly = c?.State == ControllerState.Running;
         _canvas.Controller = c;
         bool visible = _editor.Content == _graphics && _body.Visibility == Visibility.Visible;

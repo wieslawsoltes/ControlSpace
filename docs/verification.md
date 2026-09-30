@@ -11,20 +11,21 @@ The repository keeps separate gates for the platform-neutral C# engines, the sha
 | Transactional tag table | `dotnet run --project tests/ControlSpace.Table.Tests -c Release` |
 | Project navigation | `dotnet run --project tests/ControlSpace.Navigation.Tests -c Release` |
 | Allocation/rendering correctness | `dotnet run --project tests/ControlSpace.Performance.Tests -c Release` |
+| HMI authoring and rendering | `dotnet run --project tests/ControlSpace.Hmi.Tests -c Release` |
 | Program and ladder authoring | `dotnet run --project tests/ControlSpace.Program.Tests -c Release` |
 | JavaScript engine regressions | `npm test` |
 | Prototype browser interactions | `python tests/browser/prototype_test.py` after bundling |
 | Windows, Linux and macOS Uno compilation | `build.yml` desktop matrix |
-| Compiled Uno browser workflows | `pages.yml` publishes WASM, then runs `uno_smoke.py`, `tag_table.py`, `program_editor.py`, `uno_performance_test.py` and `navigation_test.py` under `/ControlSpace/` |
+| Compiled Uno browser workflows | `pages.yml` publishes WASM, then runs `uno_smoke.py`, `tag_table.py`, `program_editor.py`, `uno_performance_test.py`, `navigation_test.py` and `hmi_editor.py` under `/ControlSpace/` |
 | Deployment identity | `pages.yml` verifies that live `build-info.json` contains the deploying commit |
 
-The six native suites currently contain 277 regression groups: 56 engine, 38 workbench/editor, 43 tag-table/clipboard, 61 program-authoring, 37 allocation/rendering, and 42 navigation groups. The engine suite includes 25 shared conveyor scan vectors. The independent JavaScript suite contains 125 tests. Test counts are not a claim of complete language, runtime, UI or manufacturer compatibility.
+The seven native suites currently contain 348 regression groups: 56 engine, 38 workbench/editor, 43 tag-table/clipboard, 61 program-authoring, 37 allocation/rendering, 42 navigation, and 71 HMI-authoring groups. The engine suite includes 25 shared conveyor scan vectors. The independent JavaScript suite contains 125 tests. Test counts are not a claim of complete language, runtime, UI or manufacturer compatibility.
 
 ## Reproducible evidence
 
 The initial published Uno preview at commit `e71e46a970416bf1a378463a65842eaa3b59f911` passed [build run 36475400882](https://github.com/wieslawsoltes/ControlSpace/actions/runs/36475400882) and [Pages run 36475401056](https://github.com/wieslawsoltes/ControlSpace/actions/runs/36475401056). Those runs verify the original preview, not subsequent source changes.
 
-Workbench, tag-table, program-authoring, performance and navigation changes are tracked in [PR #7](https://github.com/wieslawsoltes/ControlSpace/pull/7), [PR #8](https://github.com/wieslawsoltes/ControlSpace/pull/8), [PR #9](https://github.com/wieslawsoltes/ControlSpace/pull/9), [PR #10](https://github.com/wieslawsoltes/ControlSpace/pull/10), and [PR #11](https://github.com/wieslawsoltes/ControlSpace/pull/11). The commit-specific Actions checks are authoritative for that revision. Browser validation is a separate mandatory check before deployment; failed intermediate revisions are not verified browser releases.
+Workbench, tag-table, program-authoring, performance and navigation changes are tracked in [PR #7](https://github.com/wieslawsoltes/ControlSpace/pull/7), [PR #8](https://github.com/wieslawsoltes/ControlSpace/pull/8), [PR #9](https://github.com/wieslawsoltes/ControlSpace/pull/9), [PR #10](https://github.com/wieslawsoltes/ControlSpace/pull/10), and [PR #11](https://github.com/wieslawsoltes/ControlSpace/pull/11) and [PR #12](https://github.com/wieslawsoltes/ControlSpace/pull/12). The commit-specific Actions checks are authoritative for that revision. Browser validation is a separate mandatory check before deployment; failed intermediate revisions are not verified browser releases.
 
 For current evidence, inspect the [repository workflows](https://github.com/wieslawsoltes/ControlSpace/actions). The `uno-browser-verification` artifact contains screenshots, browser console messages, checks, action coordinates, failure traces and the final state. Successful site builds stage genuine Uno screenshots under `docs/uno/`; `docs/images/prototype-*.png` are separately labelled JavaScript prototype previews.
 
@@ -37,6 +38,8 @@ Scenarios cover initial startup, project navigation, unique editor tabs, complet
 The tag-table suite additionally covers transactional cell/clipboard edits and 10,000-row navigation. The program suite covers block dialogs, deep copies and ordering, network metadata and structure, typed operands, palette dragging, keyboard authoring and long-rung scrolling. These are separate suites with separate browser reports; a passing earlier suite does not excuse a failure in a later suite.
 
 The navigation suite imports 1,000 blocks and 1,000 HMI screens through the normal file picker. It checks viewport-bounded row realization, source-independent index retention, preserved collapse state across search, explicit active-editor reveal, offscreen activation, initial-letter selection, and Home/End/Page focus synchronization. The performance-mechanism suite checks retained controls, dirty-gated recovery and changed/static/hidden-canvas redraw behavior. The optional probe reports read-only counters and focus/scroll state; its own telemetry overhead is not a timing benchmark.
+
+The HMI suite exercises screen creation and validation, six-object insertion, properties, native clipboard operations, multi-selection and alignment, move/resize previews, cancellation, marquee and ordering, nudging, momentary runtime input release, screen-directory duplication/deletion, and a 10,000-object file import. Its report is `hmi-editor.json`; see [HMI design](hmi-design.md) for functionality and limits.
 
 All suites must complete before the Pages artifact is uploaded for deployment. A PR never deploys Pages. Main deployments also check the public build identity after publishing. A failed browser test may retain its site artifact for diagnosis; retaining that artifact does not deploy it or mark the failed check as successful.
 

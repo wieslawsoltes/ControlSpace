@@ -19,8 +19,8 @@ public sealed class EngineeringViewport : UserControl
         grid.Children.Add(canvas); Grid.SetColumn(_vertical, 1); grid.Children.Add(_vertical); Grid.SetRow(_horizontal, 1); grid.Children.Add(_horizontal); Content = grid;
         AutomationProperties.SetAutomationId(_vertical, "ladder-scroll-vertical"); AutomationProperties.SetName(_vertical, "Ladder vertical scroll");
         AutomationProperties.SetAutomationId(_horizontal, "ladder-scroll-horizontal"); AutomationProperties.SetName(_horizontal, "Ladder horizontal scroll");
-        _vertical.ValueChanged += (_, e) => { if (!_updating) _canvas.ChangeView(vertical: (float)e.NewValue); };
-        _horizontal.ValueChanged += (_, e) => { if (!_updating) _canvas.ChangeView(horizontal: (float)e.NewValue); };
+        _vertical.ValueChanged += (_, e) => { if (!_updating) { if (_canvas.Mode == EditorMode.Hmi) _canvas.ChangeHmiView(vertical: e.NewValue); else _canvas.ChangeView(vertical: (float)e.NewValue); } };
+        _horizontal.ValueChanged += (_, e) => { if (!_updating) { if (_canvas.Mode == EditorMode.Hmi) _canvas.ChangeHmiView(horizontal: e.NewValue); else _canvas.ChangeView(horizontal: (float)e.NewValue); } };
         canvas.ViewportChanged += Refresh; Loaded += (_, _) => Refresh();
     }
     public void Refresh()
@@ -28,6 +28,16 @@ public sealed class EngineeringViewport : UserControl
         _updating = true;
         try
         {
+            bool hmi = _canvas.Mode == EditorMode.Hmi;
+            if (hmi)
+            {
+                _vertical.Visibility = _horizontal.Visibility = _canvas.HmiFit ? Visibility.Collapsed : Visibility.Visible;
+                double scale = _canvas.HmiTransform.Scale;
+                _vertical.ViewportSize = _canvas.ActualHeight / scale; _horizontal.ViewportSize = _canvas.ActualWidth / scale;
+                _vertical.Maximum = Math.Max(0, _canvas.HmiExtentHeight - _vertical.ViewportSize); _vertical.Value = _canvas.HmiScrollY;
+                _horizontal.Maximum = Math.Max(0, _canvas.HmiExtentWidth - _horizontal.ViewportSize); _horizontal.Value = _canvas.HmiScrollX;
+                _vertical.LargeChange = _vertical.ViewportSize * .8; _horizontal.LargeChange = _horizontal.ViewportSize * .8; return;
+            }
             bool ladder = _canvas.Mode == EditorMode.Ladder;
             _vertical.Visibility = ladder ? Visibility.Visible : Visibility.Collapsed;
             _horizontal.Visibility = ladder ? Visibility.Visible : Visibility.Collapsed;

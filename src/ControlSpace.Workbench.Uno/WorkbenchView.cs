@@ -50,13 +50,13 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         _canvas.ShortcutRequested += LadderCommand;
         _canvas.ContextMenuRequested += LadderContext;
         _canvas.InstructionDropped += (kind, id, snapshot) => ApplyLadderInstruction(kind, id, snapshot);
-        _canvas.ViewportChanged += () => _zoomLabel.Text = $"{_canvas.Zoom * 100:0}%";
+        _canvas.ViewportChanged += () => _zoomLabel.Text = _canvas.Mode == EditorMode.Hmi ? $"{_canvas.HmiTransform.Scale * 100:0}%" : $"{_canvas.Zoom * 100:0}%";
         _canvas.MoveRequested += MoveObject;
         _canvas.HmiInput += (tag, value) => Safe(() => { EnsureController(); _workspace.Controller!.SetInput(tag, value ? 1 : 0); UpdateRuntime(); });
         _table.TagSelected += ShowTag;
         _scan.Tick += (_, _) => { var controller = _workspace.Controller; if (controller?.State != ControllerState.Running) { _scan.Stop(); return; } controller.Step(TimeSpan.FromMilliseconds(100)); UpdateRuntime(); };
         _autosave.Tick += async (_, _) => await RecoverAsync(); _autosave.Start();
-        ConfigureShortcuts();
+        ConfigureHmi(); ConfigureShortcuts();
         SizeChanged += (_, _) => ApplyLayout();
         Refresh();
     }
@@ -86,10 +86,11 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     public void Navigate(string view)
     {
         CommitSource(); CaptureEditorState();
+        if (view != _view) { _canvas.CancelHmiInteraction(); _hmiRuntime = false; _canvas.HmiRuntime = false; }
         if (view == "portal") { ShowPortal(); return; }
         _portal.Visibility = Visibility.Collapsed; _body.Visibility = Visibility.Visible; _projectDrawer = _taskDrawer = false;
         _view = view == "hmi" ? FirstHmiView() : view; _selection = ""; _canvas.Selection = null;
-        ShowView(); ShowPalette(); ShowGeneralProperties(); UpdateDocuments(); ApplyLayout();
+        ShowView(); ShowPalette(); ShowGeneralProperties(); if (IsHmiView) ShowHmiProperties(); UpdateDocuments(); ApplyLayout();
         if (_editor.Content == _graphics) _canvas.RequestRender();
     }
     private void ShowView()
@@ -131,7 +132,8 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
         else if (_view == "diagnostics") ShowDiagnostics();
         else if (_view == "blocks") { _programs.SetProject(_workspace.Project); _editor.Content = _programs; }
         else if (_view == "library") ShowLibrary();
-        else { _canvas.Mode = _view == "devices" ? EditorMode.Devices : IsHmiView ? EditorMode.Hmi : EditorMode.Trace; _canvas.ScreenId = IsHmiView ? _view[4..] : ""; _editor.Content = _graphics; }
+        else if (_view == "screens") ShowHmiDirectory();
+        else { _canvas.Mode = _view == "devices" ? EditorMode.Devices : IsHmiView ? EditorMode.Hmi : EditorMode.Trace; _canvas.ScreenId = IsHmiView ? _view[4..] : ""; if (IsHmiView) _canvas.BindHmiScreen(); _editor.Content = _graphics; }
         _graphics.Refresh();
         _tree.SetActive(_view);
         _canvas.RequestRender();
@@ -212,16 +214,16 @@ public sealed partial class WorkbenchView : UserControl, IDisposable
     }));
     private void AddHmi(HmiKind kind) => Safe(() =>
     {
-        var screen = _workspace.Project.Screens.FirstOrDefault(s => _view == "hmi:" + s.Id) ?? _workspace.Project.Screens.FirstOrDefault() ?? throw new InvalidOperationException("The project has no HMI screen.");
-        string tag = kind == HmiKind.Label ? "" : _workspace.Project.Tags.FirstOrDefault(t => kind == HmiKind.Button ? t.Type == PlcType.Bool && PlcValues.IsInput(t.Address) : kind == HmiKind.Lamp ? t.Type == PlcType.Bool : t.Type != PlcType.Bool)?.Name ?? "";
-        _workspace.Edit("Insert HMI object", p => p.Screens.First(s => s.Id == screen.Id).Objects.Add(new(Guid.NewGuid().ToString("N"), kind, kind.ToString(), tag, 20, 20, Math.Min(160, screen.Width - 20), Math.Min(60, screen.Height - 20)))); Navigate("hmi:" + screen.Id);
+        RequireHmiDesign(); CommitSource();
+        if (!IsHmiView) { if (_workspace.Project.Screens.Count == 0) throw new InvalidOperationException("Create an HMI screen first."); Navigate(FirstHmiView()); }
+        string id = Hmi.AddObject(_workspace.Project, ActiveHmi.Id, kind); _canvas.SelectHmi([id]);
     });
-    private void Compile() => Safe(() => { CommitSource(); _workspace.Compile(); SetInspector("Info"); ShowCompilation(); });
+    private void Compile() => Safe(() => { _canvas.CancelHmiInteraction(); CommitSource(); _workspace.Compile(); SetInspector("Info"); ShowCompilation(); });
     private void EnsureController() { CommitSource(); if (_workspace.Controller is null) { if (!_workspace.Compile().Success) throw new InvalidOperationException("Compilation failed. Review diagnostics."); } }
     private void Run() => Safe(() => { EnsureController(); _workspace.Controller!.Run(); _scan.Start(); ShowInputs(); UpdateRuntime(); });
-    private void Stop() { _scan.Stop(); _workspace.Controller?.Stop(); UpdateRuntime(); }
+    private void Stop() { _canvas.CancelHmiInteraction(); _scan.Stop(); _workspace.Controller?.Stop(); UpdateRuntime(); }
     private void Step() => Safe(() => { EnsureController(); _workspace.Controller!.Step(TimeSpan.FromMilliseconds(100), true); UpdateRuntime(); });
-    private void ResetController() { _scan.Stop(); _workspace.Controller?.Reset(); UpdateRuntime(); }
+    private void ResetController() { _canvas.CancelHmiInteraction(); _scan.Stop(); _workspace.Controller?.Reset(); UpdateRuntime(); }
     private void ShowCompilation()
     {
         _messages.Children.Clear(); var diagnostics = _workspace.Compilation?.Diagnostics;
