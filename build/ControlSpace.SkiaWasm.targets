@@ -1,0 +1,34 @@
+<Project>
+  <!-- SkiaSharp 4.153 adds C++20 flags to the final emcc invocation, including
+       Uno 6.7's raw C GL shim. Wrap the package source as C++ with C linkage;
+       do not edit the package, drop the shim, or disable WebGL/WebGPU support.
+       Run before Bootstrap translates WasmShellNativeCompile into link inputs. -->
+  <Target Name="ControlSpacePrepareUnoGlShim"
+          BeforeTargets="_UnoAdjustCompatibility"
+          Condition="'$(TargetFramework)' == 'net10.0-browserwasm' and '$(SkiaSharpVersion)' == '4.153.0'">
+    <ItemGroup>
+      <_ControlSpaceCGlShim Include="@(WasmShellNativeCompile)"
+                            Condition="'%(Filename)%(Extension)' == 'uno_gl_shim.c'" />
+    </ItemGroup>
+    <Error Condition="'@(_ControlSpaceCGlShim->Count())' &gt; '1'"
+           Text="Expected at most one Uno GL shim. Review the SkiaSharp WebAssembly compatibility target." />
+    <PropertyGroup Condition="'@(_ControlSpaceCGlShim)' != ''">
+      <_ControlSpaceGlShimSource>@(_ControlSpaceCGlShim->'%(FullPath)')</_ControlSpaceGlShimSource>
+      <_ControlSpaceGlShimSource>$([System.String]::Copy('$(_ControlSpaceGlShimSource)').Replace('\', '/'))</_ControlSpaceGlShimSource>
+      <_ControlSpaceGlShimDirectory>$(IntermediateOutputPath)native-compat/</_ControlSpaceGlShimDirectory>
+      <_ControlSpaceGlShimCpp>$(_ControlSpaceGlShimDirectory)uno_gl_shim.cpp</_ControlSpaceGlShimCpp>
+    </PropertyGroup>
+    <MakeDir Directories="$(_ControlSpaceGlShimDirectory)" Condition="'@(_ControlSpaceCGlShim)' != ''" />
+    <WriteLinesToFile File="$(_ControlSpaceGlShimCpp)"
+                      Lines="extern &quot;C&quot; {%0A#include &quot;$(_ControlSpaceGlShimSource)&quot;%0A}"
+                      Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Condition="'@(_ControlSpaceCGlShim)' != ''" />
+    <ItemGroup Condition="'@(_ControlSpaceCGlShim)' != ''">
+      <WasmShellNativeCompile Remove="@(_ControlSpaceCGlShim)" />
+      <WasmShellNativeCompile Include="$(_ControlSpaceGlShimCpp)" Visible="false" />
+      <FileWrites Include="$(_ControlSpaceGlShimCpp)" />
+    </ItemGroup>
+    <Message Importance="high" Condition="'@(_ControlSpaceCGlShim)' != ''"
+             Text="Compiling the original Uno GL shim with C linkage through $(_ControlSpaceGlShimCpp)." />
+  </Target>
+</Project>
