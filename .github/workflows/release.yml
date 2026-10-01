@@ -129,7 +129,7 @@ jobs:
           python3 tools/prepare-pages.py artifacts/browser artifacts/site
           python3 -c "import shutil;shutil.make_archive('artifacts/ControlSpace-browser','zip','artifacts/site')"
           git archive --format=zip --output=artifacts/ControlSpace-source.zip HEAD
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: desktop-*
           path: artifacts/dist
@@ -178,7 +178,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nuget-packages
           path: packages
