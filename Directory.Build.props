@@ -3,7 +3,7 @@
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><LangVersion>latest</LangVersion>
     <Version>0.1.0</Version>
     <!-- Uno.Sdk consumes this override for the whole managed/native Skia group. -->
-    <SkiaSharpVersion>4.153.0</SkiaSharpVersion>
+    <SkiaSharpVersion>4.153.1</SkiaSharpVersion>
     <Authors>Wiesław Šoltés</Authors>
     <Company>Wiesław Šoltés</Company>
     <Copyright>Copyright © 2026 Wiesław Šoltés</Copyright>
